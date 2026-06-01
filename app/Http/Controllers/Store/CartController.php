@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Store;
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -45,7 +46,6 @@ class CartController extends Controller
                 'variant' => [
                     'id' => $item->variant->id,
                     'size' => $item->variant->size,
-                    'color' => $item->variant->color,
                     'sku' => $item->variant->sku,
                     'stock' => $item->variant->stock,
                     'additional_price' => $item->variant->additional_price,
@@ -53,12 +53,49 @@ class CartController extends Controller
             ];
         })->values();
 
+        $recommendedProducts = Product::query()
+            ->with([
+                'category:id,name,slug',
+                'primaryImage:id,product_id,image_path',
+            ])
+            ->select('products.*')
+            ->selectSub(function ($query) {
+                $query->from('order_items')
+                    ->selectRaw('COALESCE(SUM(quantity), 0)')
+                    ->whereColumn('order_items.product_id', 'products.id');
+            }, 'sold_count')
+            ->where('is_active', true)
+            ->orderByDesc('sold_count')
+            ->latest('products.created_at')
+            ->limit(4)
+            ->get()
+            ->map(function (Product $product) {
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'slug' => $product->slug,
+                    'price' => $product->price,
+                    'sold_count' => (int) $product->sold_count,
+                    'category' => $product->category ? [
+                        'id' => $product->category->id,
+                        'name' => $product->category->name,
+                        'slug' => $product->category->slug,
+                    ] : null,
+                    'primary_image' => $product->primaryImage ? [
+                        'id' => $product->primaryImage->id,
+                        'image_path' => $product->primaryImage->image_path,
+                    ] : null,
+                ];
+            })
+            ->values();
+
         return Inertia::render('Store/Cart/Index', [
             'items' => $items,
             'summary' => [
                 'subtotal' => $items->sum('subtotal'),
                 'total_items' => $items->sum('quantity'),
             ],
+            'recommendedProducts' => $recommendedProducts,
         ]);
     }
 
@@ -67,6 +104,7 @@ class CartController extends Controller
         $validated = $request->validate([
             'product_variant_id' => ['required', 'exists:product_variants,id'],
             'quantity' => ['required', 'integer', 'min:1'],
+            'buy_now' => ['nullable', 'boolean'],
         ]);
 
         $variant = ProductVariant::query()
@@ -119,8 +157,13 @@ class CartController extends Controller
             ]);
         }
 
+        if ($request->boolean('buy_now')) {
+            return redirect()->route('checkout.index')
+                ->with('success', 'Produk berhasil ditambahkan. Lanjutkan checkout.');
+        }
+
         return redirect()->route('cart.index')
-            ->with('success', 'Produk berhasil ditambahkan ke keranjang.');
+            ->with('success', 'Produk berhasil ditambahkan ke bag.');
     }
 
     public function update(Request $request, CartItem $cartItem): RedirectResponse
@@ -145,7 +188,7 @@ class CartController extends Controller
             'quantity' => $validated['quantity'],
         ]);
 
-        return back()->with('success', 'Keranjang berhasil diperbarui.');
+        return back()->with('success', 'Bag berhasil diperbarui.');
     }
 
     public function destroy(CartItem $cartItem): RedirectResponse
@@ -158,6 +201,6 @@ class CartController extends Controller
 
         $cartItem->delete();
 
-        return back()->with('success', 'Produk berhasil dihapus dari keranjang.');
+        return back()->with('success', 'Produk berhasil dihapus dari bag.');
     }
 }

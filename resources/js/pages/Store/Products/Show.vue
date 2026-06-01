@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Link, useForm } from '@inertiajs/vue3';
+import StoreLayout from '@/layouts/StoreLayout.vue';
 import { computed, ref } from 'vue';
 
 type Category = {
@@ -61,13 +62,20 @@ const props = defineProps<{
 const selectedImage = ref<ProductImage | null>(props.product.images[0] ?? null);
 const selectedVariantId = ref<number | null>(props.product.variants[0]?.id ?? null);
 const quantity = ref(1);
+const activeTab = ref<'description' | 'sizeGuide'>('description');
+
+const weight = ref<number | null>(null);
+const height = ref<number | null>(null);
+const suggestedSize = ref<string | null>(null);
 
 const form = useForm<{
     product_variant_id: number | null;
     quantity: number;
+    buy_now: boolean;
 }>({
     product_variant_id: selectedVariantId.value,
     quantity: quantity.value,
+    buy_now: false,
 });
 
 const selectedVariant = computed(() => {
@@ -85,14 +93,18 @@ const availableStock = computed(() => {
     return selectedVariant.value?.stock ?? 0;
 });
 
-const canAddToCart = computed(() => {
+const canAddToBag = computed(() => {
     return selectedVariant.value !== null && availableStock.value > 0 && quantity.value > 0;
 });
 
+const availableSizes = computed(() => {
+    return props.product.variants
+        .map((variant) => variant.size)
+        .filter(Boolean);
+});
+
 const storageUrl = (path: string | null | undefined) => {
-    if (!path) {
-        return '/placeholder-product.jpg';
-    }
+    if (!path) return '/placeholder-product.jpg';
 
     return `/storage/${path}`;
 };
@@ -105,10 +117,8 @@ const formatPrice = (price: string | number) => {
     }).format(Number(price));
 };
 
-const variantLabel = (variant: ProductVariant) => {
-    const parts = [variant.size, variant.color].filter(Boolean);
-
-    return parts.length ? parts.join(' / ') : variant.sku ?? 'Default';
+const sizeLabel = (variant: ProductVariant) => {
+    return variant.size ?? variant.sku ?? 'Default';
 };
 
 const selectVariant = (variant: ProductVariant) => {
@@ -139,8 +149,8 @@ const decreaseQuantity = () => {
     }
 };
 
-const addToCart = () => {
-    if (!canAddToCart.value || form.processing) {
+const submitBag = (buyNow = false) => {
+    if (!canAddToBag.value || form.processing) {
         return;
     }
 
@@ -148,53 +158,56 @@ const addToCart = () => {
 
     form.product_variant_id = selectedVariantId.value;
     form.quantity = quantity.value;
+    form.buy_now = buyNow;
 
     form.post('/cart', {
         preserveScroll: true,
     });
 };
+
+const checkSize = () => {
+    if (!weight.value || !height.value) {
+        suggestedSize.value = null;
+        return;
+    }
+
+    const w = Number(weight.value);
+    const h = Number(height.value);
+
+    if (h <= 165 && w <= 58) {
+        suggestedSize.value = 'S';
+    } else if (h <= 172 && w <= 68) {
+        suggestedSize.value = 'M';
+    } else if (h <= 180 && w <= 78) {
+        suggestedSize.value = 'L';
+    } else if (h <= 188 && w <= 90) {
+        suggestedSize.value = 'XL';
+    } else {
+        suggestedSize.value = 'XXL';
+    }
+};
 </script>
 
 <template>
-    <div class="min-h-screen bg-white text-neutral-950">
-        <header class="sticky top-0 z-50 border-b border-neutral-200 bg-white/90 backdrop-blur">
-            <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-                <Link href="/" class="text-xl font-bold tracking-tight">
-                    NEVERENDING
+    <StoreLayout>
+        <main class="mx-auto max-w-[1840px] px-6 pb-20 pt-32 sm:px-10 lg:px-[4.5vw]">
+            <div class="mb-10 text-xs font-black uppercase tracking-[0.22em] text-neutral-500">
+                <Link href="/" class="hover:text-neutral-950">
+                    Home
                 </Link>
-
-                <nav class="hidden items-center gap-8 text-sm font-medium md:flex">
-                    <Link href="/" class="hover:text-neutral-500">Home</Link>
-                    <Link href="/products" class="text-neutral-950 underline underline-offset-4">
-                        Shop
-                    </Link>
-                    <Link href="/cart" class="hover:text-neutral-500">Cart</Link>
-                </nav>
-
-                <div class="flex items-center gap-4 text-sm font-medium">
-                    <Link href="/login" class="hover:text-neutral-500">Login</Link>
-                    <Link
-                        href="/register"
-                        class="rounded-full bg-neutral-950 px-5 py-2 text-white hover:bg-neutral-800"
-                    >
-                        Register
-                    </Link>
-                </div>
-            </div>
-        </header>
-
-        <main class="mx-auto max-w-7xl px-6 py-12">
-            <div class="mb-8 text-sm text-neutral-500">
-                <Link href="/" class="hover:text-neutral-950">Home</Link>
                 <span class="mx-2">/</span>
-                <Link href="/products" class="hover:text-neutral-950">Shop</Link>
+                <Link href="/products" class="hover:text-neutral-950">
+                    Shop
+                </Link>
                 <span class="mx-2">/</span>
-                <span class="text-neutral-950">{{ product.name }}</span>
+                <span class="text-neutral-950">
+                    {{ product.name }}
+                </span>
             </div>
 
-            <section class="grid gap-12 lg:grid-cols-2">
+            <section class="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] xl:gap-16">
                 <div>
-                    <div class="overflow-hidden rounded-3xl bg-neutral-100">
+                    <div class="overflow-hidden bg-neutral-100">
                         <img
                             :src="storageUrl(selectedImage?.image_path)"
                             :alt="product.name"
@@ -210,7 +223,7 @@ const addToCart = () => {
                             v-for="image in product.images"
                             :key="image.id"
                             type="button"
-                            class="overflow-hidden rounded-2xl border bg-neutral-100"
+                            class="overflow-hidden border bg-neutral-100"
                             :class="selectedImage?.id === image.id ? 'border-neutral-950' : 'border-transparent'"
                             @click="selectedImage = image"
                         >
@@ -223,38 +236,31 @@ const addToCart = () => {
                     </div>
                 </div>
 
-                <div class="lg:pt-6">
+                <div class="lg:sticky lg:top-28 lg:h-fit">
                     <p
                         v-if="product.category"
-                        class="text-sm font-semibold uppercase tracking-[0.25em] text-neutral-500"
+                        class="text-xs font-black uppercase tracking-[0.3em] text-neutral-500"
                     >
                         {{ product.category.name }}
                     </p>
 
-                    <h1 class="mt-3 text-4xl font-black tracking-tight md:text-5xl">
+                    <h1 class="mt-4 text-4xl font-black uppercase leading-none tracking-[-0.045em] md:text-6xl">
                         {{ product.name }}
                     </h1>
 
-                    <p class="mt-5 text-2xl font-bold">
+                    <p class="mt-6 text-2xl font-black">
                         {{ formatPrice(finalPrice) }}
                     </p>
 
-                    <div
-                        v-if="product.description"
-                        class="mt-8 border-y border-neutral-200 py-8 text-neutral-700"
-                    >
-                        <p class="leading-7">
-                            {{ product.description }}
-                        </p>
-                    </div>
-
                     <div class="mt-8">
-                        <div class="mb-3 flex items-center justify-between">
-                            <p class="font-bold">Select Variant</p>
+                        <div class="mb-4 flex items-center justify-between">
+                            <p class="text-sm font-black uppercase tracking-[0.22em]">
+                                Select Size
+                            </p>
 
                             <p
                                 v-if="selectedVariant"
-                                class="text-sm text-neutral-500"
+                                class="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500"
                             >
                                 Stock: {{ availableStock }}
                             </p>
@@ -262,31 +268,31 @@ const addToCart = () => {
 
                         <div
                             v-if="product.variants.length"
-                            class="grid grid-cols-2 gap-3 sm:grid-cols-3"
+                            class="grid grid-cols-4 gap-3 sm:grid-cols-5"
                         >
                             <button
                                 v-for="variant in product.variants"
                                 :key="variant.id"
                                 type="button"
                                 :disabled="variant.stock <= 0"
-                                class="rounded-2xl border px-4 py-3 text-sm font-semibold transition"
+                                class="border px-4 py-4 text-sm font-black uppercase transition"
                                 :class="[
                                     selectedVariantId === variant.id
                                         ? 'border-neutral-950 bg-neutral-950 text-white'
                                         : 'border-neutral-300 bg-white text-neutral-950 hover:border-neutral-950',
-                                    variant.stock <= 0 ? 'cursor-not-allowed opacity-40' : '',
+                                    variant.stock <= 0 ? 'cursor-not-allowed opacity-35' : '',
                                 ]"
                                 @click="selectVariant(variant)"
                             >
-                                {{ variantLabel(variant) }}
+                                {{ sizeLabel(variant) }}
                             </button>
                         </div>
 
                         <div
                             v-else
-                            class="rounded-2xl border border-dashed border-neutral-300 p-5 text-sm text-neutral-500"
+                            class="border border-dashed border-neutral-300 p-5 text-sm text-neutral-500"
                         >
-                            No active variants available.
+                            No active sizes available.
                         </div>
 
                         <p
@@ -298,9 +304,11 @@ const addToCart = () => {
                     </div>
 
                     <div class="mt-8">
-                        <p class="mb-3 font-bold">Quantity</p>
+                        <p class="mb-4 text-sm font-black uppercase tracking-[0.22em]">
+                            Quantity
+                        </p>
 
-                        <div class="inline-flex items-center rounded-full border border-neutral-300">
+                        <div class="inline-flex items-center border border-neutral-300">
                             <button
                                 type="button"
                                 class="px-5 py-3 text-lg disabled:cursor-not-allowed disabled:opacity-40"
@@ -310,7 +318,7 @@ const addToCart = () => {
                                 -
                             </button>
 
-                            <span class="min-w-12 text-center font-bold">
+                            <span class="min-w-12 text-center font-black">
                                 {{ quantity }}
                             </span>
 
@@ -332,71 +340,240 @@ const addToCart = () => {
                         </p>
                     </div>
 
-                    <button
-                        type="button"
-                        :disabled="!canAddToCart || form.processing"
-                        class="mt-8 w-full rounded-full bg-neutral-950 px-8 py-4 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
-                        @click="addToCart"
-                    >
-                        {{ form.processing ? 'Adding...' : 'Add To Cart' }}
-                    </button>
+                    <div class="mt-8 grid gap-3">
+                        <button
+                            type="button"
+                            :disabled="!canAddToBag || form.processing"
+                            class="w-full bg-neutral-950 px-8 py-4 text-xs font-black uppercase tracking-[0.22em] text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
+                            @click="submitBag(false)"
+                        >
+                            {{ form.processing && !form.buy_now ? 'Adding...' : 'Add To Bag' }}
+                        </button>
+
+                        <button
+                            type="button"
+                            :disabled="!canAddToBag || form.processing"
+                            class="w-full border border-neutral-950 bg-white px-8 py-4 text-xs font-black uppercase tracking-[0.22em] text-neutral-950 transition hover:bg-neutral-950 hover:text-white disabled:cursor-not-allowed disabled:border-neutral-300 disabled:text-neutral-300"
+                            @click="submitBag(true)"
+                        >
+                            {{ form.processing && form.buy_now ? 'Processing...' : 'Buy Now' }}
+                        </button>
+                    </div>
 
                     <p
                         v-if="!selectedVariant"
                         class="mt-4 text-center text-xs text-neutral-500"
                     >
-                        Please select an available variant before adding this product to cart.
+                        Please select an available size before adding this product to bag.
                     </p>
+
+                    <div class="mt-8 border-t border-neutral-200 pt-6">
+                        <div class="flex gap-10 border-b border-neutral-200">
+                            <button
+                                type="button"
+                                class="pb-4 text-xs font-black uppercase tracking-[0.22em]"
+                                :class="activeTab === 'description' ? 'border-b border-neutral-950 text-neutral-950' : 'text-neutral-400'"
+                                @click="activeTab = 'description'"
+                            >
+                                Keterangan
+                            </button>
+
+                            <button
+                                type="button"
+                                class="pb-4 text-xs font-black uppercase tracking-[0.22em]"
+                                :class="activeTab === 'sizeGuide' ? 'border-b border-neutral-950 text-neutral-950' : 'text-neutral-400'"
+                                @click="activeTab = 'sizeGuide'"
+                            >
+                                Size Guide
+                            </button>
+                        </div>
+
+                        <div v-if="activeTab === 'description'" class="py-6">
+                            <p
+                                v-if="product.description"
+                                class="max-w-xl text-sm leading-7 text-neutral-600 md:text-base"
+                            >
+                                {{ product.description }}
+                            </p>
+
+                            <p
+                                v-else
+                                class="max-w-xl text-sm leading-7 text-neutral-600 md:text-base"
+                            >
+                                Clean daily wear piece from NEVERENDING. Designed for everyday movement and endless rotation.
+                            </p>
+
+                            <div class="mt-6 grid gap-3 text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">
+                                <p>Manual transfer payment</p>
+                                <p>Shipping by JNE / J&T / SiCepat / Anteraja</p>
+                                <p>Daily wear for endless rotation</p>
+                            </div>
+                        </div>
+
+                        <div v-if="activeTab === 'sizeGuide'" class="py-6">
+                            <div class="bg-neutral-100 p-6">
+                                <p class="text-lg font-medium">
+                                    Enter your weight & height to check the right size.
+                                </p>
+
+                                <div class="mt-6 grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+                                    <div>
+                                        <label class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
+                                            Weight (KG)
+                                        </label>
+
+                                        <input
+                                            v-model.number="weight"
+                                            type="number"
+                                            min="1"
+                                            placeholder="Exp: 65"
+                                            class="mt-2 w-full border border-neutral-300 bg-white px-4 py-4 text-sm outline-none focus:border-neutral-950"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
+                                            Height (CM)
+                                        </label>
+
+                                        <input
+                                            v-model.number="height"
+                                            type="number"
+                                            min="1"
+                                            placeholder="Exp: 175"
+                                            class="mt-2 w-full border border-neutral-300 bg-white px-4 py-4 text-sm outline-none focus:border-neutral-950"
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        class="self-end bg-neutral-950 px-10 py-4 text-xs font-black uppercase tracking-[0.22em] text-white transition hover:bg-neutral-800"
+                                        @click="checkSize"
+                                    >
+                                        Check
+                                    </button>
+                                </div>
+
+                                <div
+                                    v-if="suggestedSize"
+                                    class="mt-6 border border-neutral-950 bg-white p-5"
+                                >
+                                    <p class="text-xs font-black uppercase tracking-[0.2em] text-neutral-500">
+                                        Suggested Size
+                                    </p>
+
+                                    <p class="mt-2 text-3xl font-black uppercase">
+                                        {{ suggestedSize }}
+                                    </p>
+
+                                    <p
+                                        v-if="!availableSizes.includes(suggestedSize)"
+                                        class="mt-2 text-sm text-neutral-500"
+                                    >
+                                        Size {{ suggestedSize }} may not be available for this product. Please check available sizes above.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="mt-6 overflow-hidden border border-neutral-200">
+                                <table class="w-full text-left text-sm">
+                                    <thead class="bg-neutral-950 text-white">
+                                        <tr>
+                                            <th class="px-4 py-3 text-xs font-black uppercase tracking-[0.18em]">Size</th>
+                                            <th class="px-4 py-3 text-xs font-black uppercase tracking-[0.18em]">Weight</th>
+                                            <th class="px-4 py-3 text-xs font-black uppercase tracking-[0.18em]">Height</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        <tr class="border-t border-neutral-200">
+                                            <td class="px-4 py-3 font-bold">S</td>
+                                            <td class="px-4 py-3 text-neutral-600">45 - 58 kg</td>
+                                            <td class="px-4 py-3 text-neutral-600">150 - 165 cm</td>
+                                        </tr>
+
+                                        <tr class="border-t border-neutral-200">
+                                            <td class="px-4 py-3 font-bold">M</td>
+                                            <td class="px-4 py-3 text-neutral-600">59 - 68 kg</td>
+                                            <td class="px-4 py-3 text-neutral-600">166 - 172 cm</td>
+                                        </tr>
+
+                                        <tr class="border-t border-neutral-200">
+                                            <td class="px-4 py-3 font-bold">L</td>
+                                            <td class="px-4 py-3 text-neutral-600">69 - 78 kg</td>
+                                            <td class="px-4 py-3 text-neutral-600">173 - 180 cm</td>
+                                        </tr>
+
+                                        <tr class="border-t border-neutral-200">
+                                            <td class="px-4 py-3 font-bold">XL</td>
+                                            <td class="px-4 py-3 text-neutral-600">79 - 90 kg</td>
+                                            <td class="px-4 py-3 text-neutral-600">181 - 188 cm</td>
+                                        </tr>
+
+                                        <tr class="border-t border-neutral-200">
+                                            <td class="px-4 py-3 font-bold">XXL</td>
+                                            <td class="px-4 py-3 text-neutral-600">90+ kg</td>
+                                            <td class="px-4 py-3 text-neutral-600">188+ cm</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
             <section
                 v-if="relatedProducts.length"
-                class="mt-20"
+                class="mt-24"
             >
-                <div class="mb-8 flex items-end justify-between">
+                <div class="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
                     <div>
-                        <p class="text-sm font-semibold uppercase tracking-[0.25em] text-neutral-500">
+                        <p class="text-xs font-black uppercase tracking-[0.3em] text-neutral-500">
                             You May Also Like
                         </p>
-                        <h2 class="mt-2 text-3xl font-black">
+
+                        <h2 class="mt-3 text-4xl font-black uppercase tracking-[-0.04em] md:text-5xl">
                             Related Products
                         </h2>
                     </div>
 
-                    <Link href="/products" class="text-sm font-bold underline">
-                        View All
+                    <Link
+                        href="/products"
+                        class="text-xs font-black uppercase tracking-[0.2em] underline underline-offset-8"
+                    >
+                        View All Products
                     </Link>
                 </div>
 
-                <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                <div class="grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
                     <Link
                         v-for="item in relatedProducts"
                         :key="item.id"
                         :href="`/products/${item.slug}`"
                         class="group"
                     >
-                        <div class="overflow-hidden rounded-2xl bg-neutral-100">
+                        <div class="overflow-hidden bg-neutral-100">
                             <img
                                 :src="storageUrl(item.primary_image?.image_path)"
                                 :alt="item.name"
-                                class="aspect-[4/5] w-full object-cover transition duration-300 group-hover:scale-105"
+                                class="aspect-[4/5] w-full object-cover transition duration-500 group-hover:scale-105"
                             />
                         </div>
 
                         <div class="mt-4">
                             <p
                                 v-if="item.category"
-                                class="text-xs font-semibold uppercase tracking-widest text-neutral-500"
+                                class="text-[11px] font-black uppercase tracking-[0.22em] text-neutral-500"
                             >
                                 {{ item.category.name }}
                             </p>
 
-                            <h3 class="mt-1 font-bold">
+                            <h3 class="mt-2 text-sm font-black uppercase tracking-tight md:text-base">
                                 {{ item.name }}
                             </h3>
 
-                            <p class="mt-1 text-sm text-neutral-600">
+                            <p class="mt-1 text-sm font-medium text-neutral-600">
                                 {{ formatPrice(item.price) }}
                             </p>
                         </div>
@@ -404,5 +581,5 @@ const addToCart = () => {
                 </div>
             </section>
         </main>
-    </div>
+    </StoreLayout>
 </template>
