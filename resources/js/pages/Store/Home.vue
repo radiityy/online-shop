@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import StoreLayout from '@/layouts/StoreLayout.vue';
 
 type Banner = {
     id: number;
@@ -47,129 +48,132 @@ const formatPrice = (price: string | number) => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-white text-neutral-950">
-        <header class="sticky top-0 z-50 border-b border-neutral-200 bg-white/90 backdrop-blur">
-            <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-                <Link href="/" class="text-xl font-bold tracking-tight">
-                    NEVERENDING
-                </Link>
-
-                <nav class="hidden items-center gap-8 text-sm font-medium md:flex">
-                    <Link href="/" class="hover:text-neutral-500">Home</Link>
-                    <Link href="/products" class="hover:text-neutral-500">Shop</Link>
-                    <Link href="/cart" class="hover:text-neutral-500">Cart</Link>
-                </nav>
-
-                <div class="flex items-center gap-4 text-sm font-medium">
-                    <Link href="/login" class="hover:text-neutral-500">Login</Link>
-                    <Link
-                        href="/register"
-                        class="rounded-full bg-neutral-950 px-5 py-2 text-white hover:bg-neutral-800"
-                    >
-                        Register
-                    </Link>
-                </div>
-            </div>
-        </header>
-
+    <StoreLayout>
         <main>
-            <section class="mx-auto max-w-7xl px-6 py-8">
+            <section class="relative">
                 <div
                     v-if="banners.length"
-                    class="relative overflow-hidden rounded-3xl bg-neutral-100"
+                   class="relative min-h-[760px] overflow-hidden bg-neutral-950 sm:min-h-[780px] lg:min-h-[720px] xl:min-h-[740px]"
                 >
                     <img
                         :src="storageUrl(banners[0].image_path)"
                         :alt="banners[0].title"
-                        class="h-[520px] w-full object-cover"
+                        class="absolute inset-0 h-full w-full object-cover"
                     />
 
                     <div class="absolute inset-0 bg-black/35"></div>
 
-                    <div class="absolute inset-0 flex items-center">
-                        <div class="max-w-2xl px-8 text-white md:px-16">
-                            <p class="mb-4 text-sm font-semibold uppercase tracking-[0.3em]">
-                                New Collection
-                            </p>
+                    <div class="absolute inset-x-0 top-[390px] z-10 px-6 sm:top-[315px] sm:px-10 md:top-[300px] lg:top-[250px] lg:px-[4.5vw] xl:top-[335px]">
+                        <div class="mx-auto max-w-[1840px]">
+                            <div class="max-w-[1120px] text-white">
+                                <p class="mb-7 text-[11px] font-black uppercase tracking-[0.42em] text-white/85 md:text-xs">
+                                    Neverending Daily Wear
+                                </p>
 
-                            <h1 class="text-5xl font-black tracking-tight md:text-7xl">
-                                {{ banners[0].title }}
-                            </h1>
+                                <h1 class="text-[68px] font-black uppercase leading-[0.92] tracking-[-0.045em] sm:text-[82px] md:text-[100px] lg:text-[116px] xl:text-[128px]">
+                                    {{ banners[0].title }}
+                                </h1>
 
-                            <p
-                                v-if="banners[0].subtitle"
-                                class="mt-5 max-w-xl text-lg text-white/85"
-                            >
-                                {{ banners[0].subtitle }}
-                            </p>
+                                <p
+                                    v-if="banners[0].subtitle"
+                                    class="mt-7 max-w-xl text-sm leading-7 text-white/80 md:text-base"
+                                >
+                                    {{ banners[0].subtitle }}
+                                </p>
 
-                            <Link
-                                :href="banners[0].link_url || '/products'"
-                                class="mt-8 inline-flex rounded-full bg-white px-7 py-3 text-sm font-bold text-neutral-950 hover:bg-neutral-200"
-                            >
-                                Shop Now
-                            </Link>
+                                <Link
+                                    :href="banners[0].link_url || '/products'"
+                                    class="mt-9 inline-flex rounded-full border border-white bg-white px-9 py-4 text-[11px] font-black uppercase tracking-[0.26em] text-neutral-950 transition duration-300 hover:bg-white/10 hover:text-white hover:backdrop-blur-sm"
+                                >
+                                    Shop Now
+                                </Link>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div
                     v-else
-                    class="flex h-[520px] items-center justify-center rounded-3xl bg-neutral-100 text-center"
+                    class="relative flex min-h-[700px] items-center justify-start bg-neutral-100 px-6 sm:px-10 lg:min-h-[720px] lg:px-[7.5vw] xl:min-h-[760px]"
                 >
-                    <div>
-                        <h1 class="text-5xl font-black">NEW ARRIVAL</h1>
-                        <p class="mt-4 text-neutral-600">
+                    <div class="mx-auto w-full max-w-[1840px]">
+                        <p class="text-[11px] font-black uppercase tracking-[0.42em] text-neutral-500 md:text-xs">
+                            Neverending Daily Wear
+                        </p>
+
+                        <h1 class="mt-7 text-[68px] font-black uppercase leading-[0.92] tracking-[-0.045em] sm:text-[82px] md:text-[100px] lg:text-[116px]">
+                            New Arrival
+                        </h1>
+
+                        <p class="mt-6 text-neutral-600">
                             Add active banner from admin panel.
                         </p>
+
+                        <Link
+                            href="/admin"
+                            class="mt-9 inline-flex rounded-full bg-neutral-950 px-9 py-4 text-[11px] font-black uppercase tracking-[0.26em] text-white transition hover:bg-neutral-800"
+                        >
+                            Add Banner
+                        </Link>
                     </div>
                 </div>
             </section>
 
-            <section class="mx-auto max-w-7xl px-6 py-14">
-                <div class="mb-8 flex items-end justify-between">
+            <section class="mx-auto max-w-[1840px] px-6 py-20 sm:px-10 lg:px-[7.5vw]">
+                <div class="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
                     <div>
-                        <p class="text-sm font-semibold uppercase tracking-[0.25em] text-neutral-500">
-                            Latest Products
+                        <p class="text-xs font-black uppercase tracking-[0.28em] text-neutral-500">
+                            New Arrivals
                         </p>
-                        <h2 class="mt-2 text-3xl font-black">
-                            Fresh From The Store
+
+                        <h2 class="mt-3 text-4xl font-black uppercase tracking-[-0.03em] md:text-5xl">
+                            Fresh Rotation
                         </h2>
+
+                        <p class="mt-4 max-w-xl text-sm leading-7 text-neutral-600 md:text-base">
+                            Clean pieces for your everyday movement. Built to stay in your rotation.
+                        </p>
                     </div>
 
-                    <Link href="/products" class="text-sm font-bold underline">
-                        View All
+                    <Link
+                        href="/products"
+                        class="text-xs font-black uppercase tracking-[0.2em] underline underline-offset-8"
+                    >
+                        View All Products
                     </Link>
                 </div>
 
-                <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                <div
+                    v-if="products.length"
+                    class="grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-4"
+                >
                     <Link
                         v-for="product in products"
                         :key="product.id"
                         :href="`/products/${product.slug}`"
                         class="group"
                     >
-                        <div class="overflow-hidden rounded-2xl bg-neutral-100">
+                        <div class="overflow-hidden bg-neutral-100">
                             <img
                                 :src="storageUrl(product.primary_image?.image_path)"
                                 :alt="product.name"
-                                class="aspect-[4/5] w-full object-cover transition duration-300 group-hover:scale-105"
+                                class="aspect-[4/5] w-full object-cover transition duration-500 group-hover:scale-105"
                             />
                         </div>
 
                         <div class="mt-4">
                             <p
                                 v-if="product.category"
-                                class="text-xs font-semibold uppercase tracking-widest text-neutral-500"
+                                class="text-[11px] font-black uppercase tracking-[0.22em] text-neutral-500"
                             >
                                 {{ product.category.name }}
                             </p>
 
-                            <h3 class="mt-1 font-bold">
+                            <h3 class="mt-2 text-sm font-black uppercase tracking-tight md:text-base">
                                 {{ product.name }}
                             </h3>
 
-                            <p class="mt-1 text-sm text-neutral-600">
+                            <p class="mt-1 text-sm font-medium text-neutral-600">
                                 {{ formatPrice(product.price) }}
                             </p>
                         </div>
@@ -177,12 +181,40 @@ const formatPrice = (price: string | number) => {
                 </div>
 
                 <div
-                    v-if="!products.length"
-                    class="rounded-2xl border border-dashed border-neutral-300 p-10 text-center text-neutral-500"
+                    v-else
+                    class="rounded-3xl border border-dashed border-neutral-300 p-12 text-center text-neutral-500"
                 >
                     Belum ada produk aktif. Tambahkan produk dari admin panel.
                 </div>
             </section>
+
+            <section class="bg-neutral-950 px-6 py-20 text-white sm:px-10 lg:px-[7.5vw]">
+                <div class="mx-auto grid max-w-[1840px] gap-10 md:grid-cols-[1fr_1.2fr] md:items-center">
+                    <div>
+                        <p class="text-xs font-black uppercase tracking-[0.3em] text-white/50">
+                            About Neverending
+                        </p>
+
+                        <h2 class="mt-4 text-4xl font-black uppercase leading-tight tracking-[-0.03em] md:text-6xl">
+                            Daily wear for endless rotation.
+                        </h2>
+                    </div>
+
+                    <div>
+                        <p class="text-base leading-8 text-white/70">
+                            NEVERENDING menghadirkan pakaian clean, modern, dan mudah dipakai untuk aktivitas sehari-hari.
+                            Setiap koleksi dirancang sebagai bagian dari rotasi outfit yang tidak cepat hilang oleh tren.
+                        </p>
+
+                        <Link
+                            href="/products"
+                            class="mt-8 inline-flex rounded-full border border-white bg-white px-8 py-4 text-[11px] font-black uppercase tracking-[0.25em] text-neutral-950 transition duration-300 hover:bg-white/10 hover:text-white hover:backdrop-blur-sm"
+                        >
+                            Explore Collection
+                        </Link>
+                    </div>
+                </div>
+            </section>
         </main>
-    </div>
+    </StoreLayout>
 </template>
