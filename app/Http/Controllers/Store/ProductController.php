@@ -52,4 +52,49 @@ class ProductController extends Controller
             ],
         ]);
     }
+
+    public function show(string $slug): Response
+    {
+        $product = Product::query()
+            ->with([
+                'category:id,name,slug',
+                'images' => function ($query) {
+                    $query->orderByDesc('is_primary')
+                        ->orderBy('sort_order')
+                        ->orderBy('id');
+                },
+                'variants' => function ($query) {
+                    $query->where('is_active', true)
+                        ->orderBy('size')
+                        ->orderBy('color');
+                },
+            ])
+            ->where('is_active', true)
+            ->where('slug', $slug)
+            ->firstOrFail();
+
+        $relatedProducts = Product::query()
+            ->with([
+                'category:id,name,slug',
+                'primaryImage:id,product_id,image_path',
+            ])
+            ->where('is_active', true)
+            ->where('id', '!=', $product->id)
+            ->where('category_id', $product->category_id)
+            ->latest()
+            ->take(4)
+            ->get([
+                'id',
+                'category_id',
+                'name',
+                'slug',
+                'price',
+                'weight',
+            ]);
+
+        return Inertia::render('Store/Products/Show', [
+            'product' => $product,
+            'relatedProducts' => $relatedProducts,
+        ]);
+    }
 }
