@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\Orders\Tables;
 
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
@@ -15,12 +14,13 @@ class OrdersTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->defaultSort('created_at', 'desc')
             ->columns([
                 TextColumn::make('order_code')
                     ->label('Order Code')
                     ->searchable()
                     ->sortable()
-                    ->copyable(),
+                    ->weight('bold'),
 
                 TextColumn::make('user.name')
                     ->label('Customer')
@@ -35,34 +35,43 @@ class OrdersTable
                 TextColumn::make('payment_status')
                     ->label('Payment')
                     ->badge()
+                    ->formatStateUsing(fn (string $state): string => str_replace('_', ' ', strtoupper($state)))
                     ->color(fn (string $state): string => match ($state) {
                         'paid' => 'success',
                         'failed', 'expired', 'refunded' => 'danger',
+                        'waiting_confirmation' => 'info',
                         default => 'warning',
                     })
-                    ->formatStateUsing(fn (string $state): string => str($state)->replace('_', ' ')->title()),
+                    ->sortable(),
 
                 TextColumn::make('order_status')
                     ->label('Order')
                     ->badge()
+                    ->formatStateUsing(fn (string $state): string => str_replace('_', ' ', strtoupper($state)))
                     ->color(fn (string $state): string => match ($state) {
-                        'completed' => 'success',
-                        'processing' => 'info',
+                        'completed', 'delivered' => 'success',
+                        'processing', 'packed', 'shipped' => 'info',
                         'cancelled' => 'danger',
                         default => 'warning',
                     })
-                    ->formatStateUsing(fn (string $state): string => str($state)->replace('_', ' ')->title()),
+                    ->sortable(),
 
                 TextColumn::make('shipping_status')
                     ->label('Shipping')
                     ->badge()
+                    ->formatStateUsing(fn (string $state): string => str_replace('_', ' ', strtoupper($state)))
                     ->color(fn (string $state): string => match ($state) {
                         'delivered' => 'success',
-                        'shipped' => 'info',
-                        'packed' => 'warning',
-                        default => 'gray',
+                        'shipped', 'packed' => 'info',
+                        'returned' => 'danger',
+                        default => 'warning',
                     })
-                    ->formatStateUsing(fn (string $state): string => str($state)->replace('_', ' ')->title()),
+                    ->sortable(),
+
+                TextColumn::make('shipment.tracking_number')
+                    ->label('Resi')
+                    ->placeholder('-')
+                    ->searchable(),
 
                 TextColumn::make('created_at')
                     ->label('Created')
@@ -71,8 +80,10 @@ class OrdersTable
             ])
             ->filters([
                 SelectFilter::make('payment_status')
+                    ->label('Payment Status')
                     ->options([
                         'pending' => 'Pending',
+                        'waiting_confirmation' => 'Waiting Confirmation',
                         'paid' => 'Paid',
                         'failed' => 'Failed',
                         'expired' => 'Expired',
@@ -80,19 +91,25 @@ class OrdersTable
                     ]),
 
                 SelectFilter::make('order_status')
+                    ->label('Order Status')
                     ->options([
                         'pending' => 'Pending',
                         'processing' => 'Processing',
+                        'packed' => 'Packed',
+                        'shipped' => 'Shipped',
+                        'delivered' => 'Delivered',
                         'completed' => 'Completed',
                         'cancelled' => 'Cancelled',
                     ]),
 
                 SelectFilter::make('shipping_status')
+                    ->label('Shipping Status')
                     ->options([
                         'not_shipped' => 'Not Shipped',
                         'packed' => 'Packed',
                         'shipped' => 'Shipped',
                         'delivered' => 'Delivered',
+                        'returned' => 'Returned',
                     ]),
             ])
             ->recordActions([
@@ -101,9 +118,8 @@ class OrdersTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    //
                 ]),
-            ])
-            ->defaultSort('created_at', 'desc');
+            ]);
     }
 }

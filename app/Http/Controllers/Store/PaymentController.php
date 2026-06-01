@@ -43,11 +43,11 @@ class PaymentController extends Controller
 
         $order->payment->update([
             'proof_image' => $path,
-            'status' => 'pending',
+            'status' => 'waiting_confirmation',
         ]);
 
         $order->update([
-            'payment_status' => 'pending',
+            'payment_status' => 'waiting_confirmation',
         ]);
 
         return back()->with('success', 'Bukti pembayaran berhasil diupload. Menunggu konfirmasi admin.');
