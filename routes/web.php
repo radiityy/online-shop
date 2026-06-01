@@ -5,6 +5,7 @@ use App\Http\Controllers\Store\ProductController;
 use App\Http\Controllers\Store\CartController;
 use App\Http\Controllers\Store\CheckoutController;
 use App\Http\Controllers\Store\OrderController;
+use App\Http\Controllers\Store\PaymentController;
 use Illuminate\Support\Facades\Route;
 
 use Inertia\Inertia;
@@ -34,6 +35,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
 
     Route::get('/orders/{orderCode}', [OrderController::class, 'show'])->name('orders.show');
+
+    Route::post('/orders/{orderCode}/payment-proof', [PaymentController::class, 'uploadProof'])
+    ->name('orders.payment-proof');
 });
 
 require __DIR__ . '/settings.php';

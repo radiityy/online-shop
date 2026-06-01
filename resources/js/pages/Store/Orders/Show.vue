@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 type OrderItem = {
     id: number;
@@ -41,6 +42,7 @@ type Order = {
         payment_method: string;
         amount: string;
         status: string;
+        proof_image: string | null;
     } | null;
     shipment?: {
         courier: string | null;
@@ -50,9 +52,17 @@ type Order = {
     } | null;
 };
 
-defineProps<{
+const props = defineProps<{
     order: Order;
 }>();
+
+const selectedProofName = ref<string | null>(null);
+
+const form = useForm<{
+    proof_image: File | null;
+}>({
+    proof_image: null,
+});
 
 const storageUrl = (path: string | null | undefined) => {
     if (!path) return '/placeholder-product.jpg';
@@ -70,6 +80,25 @@ const formatPrice = (price: string | number) => {
 
 const statusLabel = (status: string) => {
     return status.replaceAll('_', ' ').toUpperCase();
+};
+
+const handleProofChange = (event: Event) => {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0] ?? null;
+
+    form.proof_image = file;
+    selectedProofName.value = file?.name ?? null;
+};
+
+const uploadProof = () => {
+    form.post(`/orders/${props.order.order_code}/payment-proof`, {
+        preserveScroll: true,
+        forceFormData: true,
+        onSuccess: () => {
+            form.reset('proof_image');
+            selectedProofName.value = null;
+        },
+    });
 };
 </script>
 
@@ -92,7 +121,7 @@ const statusLabel = (status: string) => {
         <main class="mx-auto max-w-7xl px-6 py-12">
             <section class="mb-10">
                 <p class="text-sm font-semibold uppercase tracking-[0.25em] text-neutral-500">
-                    Order Created
+                    Order Detail
                 </p>
 
                 <h1 class="mt-3 text-4xl font-black tracking-tight md:text-5xl">
@@ -164,6 +193,89 @@ const statusLabel = (status: string) => {
                             </p>
                         </div>
                     </div>
+
+                    <div class="rounded-3xl border border-neutral-200 p-6">
+                        <h2 class="text-xl font-black">
+                            Upload Payment Proof
+                        </h2>
+
+                        <div class="mt-5 rounded-2xl bg-neutral-50 p-5 text-sm leading-7 text-neutral-700">
+                            <p class="font-bold text-neutral-950">
+                                Manual Transfer
+                            </p>
+                            <p>Bank: BCA</p>
+                            <p>No. Rekening: 1234567890</p>
+                            <p>Atas Nama: NEVERENDING</p>
+                            <p class="mt-2 font-bold text-neutral-950">
+                                Total: {{ formatPrice(order.total) }}
+                            </p>
+                        </div>
+
+                        <div
+                            v-if="order.payment?.proof_image"
+                            class="mt-5 rounded-2xl border border-neutral-200 p-4"
+                        >
+                            <p class="mb-3 text-sm font-bold">
+                                Current Payment Proof
+                            </p>
+
+                            <img
+                                :src="storageUrl(order.payment.proof_image)"
+                                alt="Payment proof"
+                                class="max-h-80 rounded-2xl object-contain"
+                            />
+
+                            <p class="mt-3 text-sm text-neutral-500">
+                                Status: {{ statusLabel(order.payment.status) }}
+                            </p>
+                        </div>
+
+                        <form
+                            v-if="order.payment_status !== 'paid'"
+                            class="mt-5"
+                            @submit.prevent="uploadProof"
+                        >
+                            <label class="block text-sm font-bold">
+                                Upload New Proof
+                            </label>
+
+                            <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/jpg,image/webp"
+                                class="mt-2 w-full rounded-2xl border border-neutral-300 px-4 py-3 text-sm"
+                                @change="handleProofChange"
+                            />
+
+                            <p
+                                v-if="selectedProofName"
+                                class="mt-2 text-sm text-neutral-500"
+                            >
+                                Selected: {{ selectedProofName }}
+                            </p>
+
+                            <p
+                                v-if="form.errors.proof_image"
+                                class="mt-2 text-sm text-red-600"
+                            >
+                                {{ form.errors.proof_image }}
+                            </p>
+
+                            <button
+                                type="submit"
+                                :disabled="form.processing || !form.proof_image"
+                                class="mt-5 w-full rounded-full bg-neutral-950 px-6 py-4 text-sm font-bold uppercase tracking-[0.2em] text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
+                            >
+                                {{ form.processing ? 'Uploading...' : 'Upload Payment Proof' }}
+                            </button>
+                        </form>
+
+                        <p
+                            v-else
+                            class="mt-5 rounded-2xl bg-green-50 p-4 text-sm font-medium text-green-700"
+                        >
+                            Payment has been confirmed by admin.
+                        </p>
+                    </div>
                 </div>
 
                 <aside class="h-fit rounded-3xl border border-neutral-200 bg-neutral-50 p-6">
@@ -203,15 +315,6 @@ const statusLabel = (status: string) => {
                                 <span class="font-black">{{ formatPrice(order.total) }}</span>
                             </div>
                         </div>
-                    </div>
-
-                    <div class="mt-6 rounded-2xl bg-white p-4 text-sm leading-7 text-neutral-600">
-                        <p class="font-bold text-neutral-950">
-                            Manual Transfer
-                        </p>
-                        <p>
-                            Silakan transfer sesuai total pembayaran. Fitur upload bukti pembayaran akan dibuat pada tahap berikutnya.
-                        </p>
                     </div>
 
                     <Link
