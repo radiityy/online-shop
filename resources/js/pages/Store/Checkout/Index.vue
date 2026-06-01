@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link, useForm } from '@inertiajs/vue3';
 import StoreLayout from '@/layouts/StoreLayout.vue';
+import { computed, onMounted, ref } from 'vue';
 
 type CheckoutItem = {
     id: number;
@@ -23,7 +24,32 @@ type CheckoutItem = {
     };
 };
 
-defineProps<{
+type Address = {
+    id: number;
+    recipient_name: string;
+    phone: string;
+    province: string;
+    city: string;
+    district: string;
+    postal_code: string | null;
+    full_address: string;
+    is_default: boolean;
+};
+
+type CheckoutForm = {
+    address_id: number | null;
+    recipient_name: string;
+    phone: string;
+    province: string;
+    city: string;
+    district: string;
+    postal_code: string;
+    full_address: string;
+    notes: string;
+    save_address: boolean;
+};
+
+const props = defineProps<{
     items: CheckoutItem[];
     summary: {
         subtotal: number;
@@ -31,18 +57,32 @@ defineProps<{
         total: number;
         total_items: number;
     };
+    addresses: Address[];
+    defaultAddress: Address | null;
 }>();
 
-const form = useForm({
-    recipient_name: '',
-    phone: '',
-    province: '',
-    city: '',
-    district: '',
-    postal_code: '',
-    full_address: '',
+const selectedAddressId = ref<number | null>(props.defaultAddress?.id ?? null);
+const useManualAddress = ref(props.addresses.length === 0);
+
+const form = useForm<CheckoutForm>({
+    address_id: props.defaultAddress?.id ?? null,
+    recipient_name: props.defaultAddress?.recipient_name ?? '',
+    phone: props.defaultAddress?.phone ?? '',
+    province: props.defaultAddress?.province ?? '',
+    city: props.defaultAddress?.city ?? '',
+    district: props.defaultAddress?.district ?? '',
+    postal_code: props.defaultAddress?.postal_code ?? '',
+    full_address: props.defaultAddress?.full_address ?? '',
     notes: '',
-    save_address: true,
+    save_address: props.addresses.length === 0,
+});
+
+const selectedAddress = computed(() => {
+    return props.addresses.find((address) => address.id === selectedAddressId.value) ?? null;
+});
+
+const shouldShowAddressForm = computed(() => {
+    return useManualAddress.value || props.addresses.length === 0;
 });
 
 const storageUrl = (path: string | null | undefined) => {
@@ -63,11 +103,53 @@ const sizeLabel = (item: CheckoutItem) => {
     return item.variant.size ?? item.variant.sku ?? 'Default';
 };
 
+const fillAddress = (address: Address) => {
+    selectedAddressId.value = address.id;
+    useManualAddress.value = false;
+
+    form.address_id = address.id;
+    form.recipient_name = address.recipient_name;
+    form.phone = address.phone;
+    form.province = address.province;
+    form.city = address.city;
+    form.district = address.district;
+    form.postal_code = address.postal_code ?? '';
+    form.full_address = address.full_address;
+    form.save_address = false;
+
+    form.clearErrors();
+};
+
+const useNewAddress = () => {
+    selectedAddressId.value = null;
+    useManualAddress.value = true;
+
+    form.address_id = null;
+    form.recipient_name = '';
+    form.phone = '';
+    form.province = '';
+    form.city = '';
+    form.district = '';
+    form.postal_code = '';
+    form.full_address = '';
+    form.save_address = true;
+
+    form.clearErrors();
+};
+
 const submitOrder = () => {
     form.post('/checkout', {
         preserveScroll: true,
     });
 };
+
+onMounted(() => {
+    if (props.defaultAddress) {
+        fillAddress(props.defaultAddress);
+    } else {
+        useNewAddress();
+    }
+});
 </script>
 
 <template>
@@ -85,7 +167,7 @@ const submitOrder = () => {
                         </h1>
 
                         <p class="mt-4 max-w-xl text-sm leading-7 text-neutral-600 md:text-base">
-                            Fill your shipping information and confirm your NEVERENDING order.
+                            Choose your saved address or add a new delivery address for your NEVERENDING order.
                         </p>
                     </div>
 
@@ -110,7 +192,123 @@ const submitOrder = () => {
                         </h2>
                     </div>
 
-                    <div class="grid gap-5 md:grid-cols-2">
+                    <div
+                        v-if="addresses.length"
+                        class="mb-8"
+                    >
+                        <div class="mb-4 flex items-center justify-between gap-4">
+                            <p class="text-xs font-black uppercase tracking-[0.22em] text-neutral-500">
+                                Saved Addresses
+                            </p>
+
+                            <Link
+                                href="/account/addresses"
+                                class="text-xs font-black uppercase tracking-[0.18em] underline underline-offset-4"
+                            >
+                                Manage
+                            </Link>
+                        </div>
+
+                        <div class="grid gap-4">
+                            <button
+                                v-for="address in addresses"
+                                :key="address.id"
+                                type="button"
+                                class="border p-5 text-left transition"
+                                :class="selectedAddressId === address.id && !useManualAddress
+                                    ? 'border-neutral-950 bg-neutral-950 text-white'
+                                    : 'border-neutral-200 bg-white text-neutral-950 hover:border-neutral-950'"
+                                @click="fillAddress(address)"
+                            >
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <p class="font-black uppercase tracking-[-0.02em]">
+                                        {{ address.recipient_name }}
+                                    </p>
+
+                                    <span
+                                        v-if="address.is_default"
+                                        class="px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em]"
+                                        :class="selectedAddressId === address.id && !useManualAddress
+                                            ? 'bg-white text-neutral-950'
+                                            : 'bg-neutral-950 text-white'"
+                                    >
+                                        Default
+                                    </span>
+                                </div>
+
+                                <p class="mt-2 text-sm opacity-80">
+                                    {{ address.phone }}
+                                </p>
+
+                                <p class="mt-3 text-sm leading-6 opacity-80">
+                                    {{ address.full_address }}
+                                </p>
+
+                                <p class="text-sm leading-6 opacity-80">
+                                    {{ address.district }}, {{ address.city }}, {{ address.province }}
+                                    <span v-if="address.postal_code">, {{ address.postal_code }}</span>
+                                </p>
+                            </button>
+
+                            <button
+                                type="button"
+                                class="border border-dashed border-neutral-300 bg-neutral-50 p-5 text-left transition hover:border-neutral-950"
+                                :class="useManualAddress ? 'border-neutral-950 bg-white' : ''"
+                                @click="useNewAddress"
+                            >
+                                <p class="text-sm font-black uppercase tracking-[0.18em]">
+                                    Use New Address
+                                </p>
+
+                                <p class="mt-2 text-sm text-neutral-500">
+                                    Fill a new delivery address manually.
+                                </p>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="selectedAddress && !shouldShowAddressForm"
+                        class="mb-8 border border-neutral-200 bg-neutral-50 p-5"
+                    >
+                        <p class="text-xs font-black uppercase tracking-[0.22em] text-neutral-500">
+                            Selected Address
+                        </p>
+
+                        <div class="mt-4 text-sm leading-7 text-neutral-600">
+                            <p class="font-black uppercase tracking-[0.1em] text-neutral-950">
+                                {{ selectedAddress.recipient_name }}
+                            </p>
+
+                            <p class="mt-1">
+                                {{ selectedAddress.phone }}
+                            </p>
+
+                            <p class="mt-4">
+                                {{ selectedAddress.full_address }}
+                            </p>
+
+                            <p>
+                                {{ selectedAddress.district }},
+                                {{ selectedAddress.city }},
+                                {{ selectedAddress.province }}
+                                <span v-if="selectedAddress.postal_code">
+                                    , {{ selectedAddress.postal_code }}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="shouldShowAddressForm"
+                        class="grid gap-5 md:grid-cols-2"
+                    >
+                        <div class="md:col-span-2">
+                            <p class="text-xs font-black uppercase tracking-[0.22em] text-neutral-500">
+                                {{ addresses.length ? 'New Address Form' : 'Add Your First Address' }}
+                            </p>
+                        </div>
+
                         <div>
                             <label class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
                                 Recipient Name
@@ -251,20 +449,9 @@ const submitOrder = () => {
                             </p>
                         </div>
 
-                        <div class="md:col-span-2">
-                            <label class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
-                                Notes
-                            </label>
-
-                            <textarea
-                                v-model="form.notes"
-                                rows="3"
-                                class="mt-2 w-full border border-neutral-300 bg-white px-4 py-4 text-sm outline-none transition focus:border-neutral-950"
-                                placeholder="Optional notes for admin..."
-                            ></textarea>
-                        </div>
-
-                        <label class="flex items-center gap-3 border border-neutral-200 bg-neutral-50 p-4 md:col-span-2">
+                        <label
+                            class="flex items-center gap-3 border border-neutral-200 bg-neutral-50 p-4 md:col-span-2"
+                        >
                             <input
                                 v-model="form.save_address"
                                 type="checkbox"
@@ -272,9 +459,22 @@ const submitOrder = () => {
                             />
 
                             <span class="text-sm font-bold text-neutral-700">
-                                Save this address as default
+                                Save this address
                             </span>
                         </label>
+                    </div>
+
+                    <div class="mt-8">
+                        <label class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
+                            Notes
+                        </label>
+
+                        <textarea
+                            v-model="form.notes"
+                            rows="3"
+                            class="mt-2 w-full border border-neutral-300 bg-white px-4 py-4 text-sm outline-none transition focus:border-neutral-950"
+                            placeholder="Optional notes for admin..."
+                        ></textarea>
                     </div>
 
                     <button

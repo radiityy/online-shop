@@ -17,6 +17,8 @@ const props = withDefaults(defineProps<{
 const page = usePage();
 
 const isLoggedIn = computed(() => Boolean((page.props as PageProps).auth?.user));
+const flashSuccess = computed(() => (page.props as any).flash?.success);
+const flashError = computed(() => (page.props as any).flash?.error);
 
 const isShopOpen = ref(false);
 const isAccountOpen = ref(false);
@@ -68,6 +70,19 @@ onBeforeUnmount(() => {
 <template>
     <div class="min-h-screen bg-white text-neutral-950">
         <div
+            v-if="flashSuccess"
+            class="fixed right-5 top-24 z-[100] max-w-sm border border-green-200 bg-green-50 px-5 py-4 text-sm font-bold text-green-700 shadow-xl"
+        >
+            {{ flashSuccess }}
+        </div>
+
+        <div
+            v-if="flashError"
+            class="fixed right-5 top-24 z-[100] max-w-sm border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700 shadow-xl"
+        >
+            {{ flashError }}
+        </div>
+        <div
             v-show="showAnnouncement"
             class="fixed left-0 right-0 top-0 z-[60] overflow-hidden bg-neutral-950 py-1.5 text-white transition duration-300"
         >
@@ -88,7 +103,6 @@ onBeforeUnmount(() => {
             class="fixed left-0 right-0 z-50 transition-all duration-300"
             :class="headerClass"
         >
-            <!-- MOBILE HEADER -->
             <div class="grid grid-cols-[auto_1fr_auto] items-center px-5 py-4 lg:hidden">
                 <button
                     type="button"
@@ -155,7 +169,6 @@ onBeforeUnmount(() => {
                 </Link>
             </div>
 
-            <!-- DESKTOP HEADER -->
             <div class="relative hidden h-[62px] items-center lg:block">
                 <nav class="absolute left-[6.5vw] top-1/2 flex -translate-y-1/2 items-center gap-8 text-[11px] font-black uppercase tracking-[0.15em]">
                     <div
@@ -324,6 +337,15 @@ onBeforeUnmount(() => {
                                 </Link>
 
                                 <Link
+                                    v-if="isLoggedIn"
+                                    href="/account/addresses"
+                                    class="block hover:text-neutral-500"
+                                    @click="closeMenus"
+                                >
+                                    Alamat Saya
+                                </Link>
+
+                                <Link
                                     v-if="!isLoggedIn"
                                     href="/login"
                                     class="block hover:text-neutral-500"
@@ -374,7 +396,6 @@ onBeforeUnmount(() => {
                 </div>
             </div>
 
-            <!-- MOBILE MENU -->
             <div
                 v-if="isMobileMenuOpen"
                 class="max-h-[calc(100vh-72px)] overflow-y-auto border-t border-neutral-200 bg-white px-6 py-7 text-neutral-950 shadow-2xl lg:hidden"
@@ -412,6 +433,15 @@ onBeforeUnmount(() => {
                                 @click="closeMenus"
                             >
                                 Orders
+                            </Link>
+
+                            <Link
+                                v-if="isLoggedIn"
+                                href="/account/addresses"
+                                class="block"
+                                @click="closeMenus"
+                            >
+                                Addresses
                             </Link>
 
                             <Link

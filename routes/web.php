@@ -6,6 +6,7 @@ use App\Http\Controllers\Store\CartController;
 use App\Http\Controllers\Store\CheckoutController;
 use App\Http\Controllers\Store\OrderController;
 use App\Http\Controllers\Store\PaymentController;
+use App\Http\Controllers\Store\AddressController;
 use Illuminate\Support\Facades\Route;
 
 use Inertia\Inertia;
@@ -35,6 +36,20 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('/orders/{orderCode}/payment-proof', [PaymentController::class, 'uploadProof'])
         ->name('orders.payment-proof');
+        Route::get('/account/addresses', [AddressController::class, 'index'])
+    ->name('account.addresses.index');
+
+Route::post('/account/addresses', [AddressController::class, 'store'])
+    ->name('account.addresses.store');
+
+Route::put('/account/addresses/{address}', [AddressController::class, 'update'])
+    ->name('account.addresses.update');
+
+Route::delete('/account/addresses/{address}', [AddressController::class, 'destroy'])
+    ->name('account.addresses.destroy');
+
+Route::patch('/account/addresses/{address}/default', [AddressController::class, 'setDefault'])
+    ->name('account.addresses.default');
 });
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
