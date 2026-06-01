@@ -6,6 +6,10 @@ type PageProps = {
     auth?: {
         user?: unknown;
     };
+    flash?: {
+        success?: string | null;
+        error?: string | null;
+    };
 };
 
 const props = withDefaults(defineProps<{
@@ -17,8 +21,8 @@ const props = withDefaults(defineProps<{
 const page = usePage();
 
 const isLoggedIn = computed(() => Boolean((page.props as PageProps).auth?.user));
-const flashSuccess = computed(() => (page.props as any).flash?.success);
-const flashError = computed(() => (page.props as any).flash?.error);
+const flashSuccess = computed(() => (page.props as PageProps).flash?.success);
+const flashError = computed(() => (page.props as PageProps).flash?.error);
 
 const isShopOpen = ref(false);
 const isAccountOpen = ref(false);
@@ -82,6 +86,7 @@ onBeforeUnmount(() => {
         >
             {{ flashError }}
         </div>
+
         <div
             v-show="showAnnouncement"
             class="fixed left-0 right-0 top-0 z-[60] overflow-hidden bg-neutral-950 py-1.5 text-white transition duration-300"
@@ -194,12 +199,15 @@ onBeforeUnmount(() => {
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             New Arrivals
                                         </Link>
+
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             All Products
                                         </Link>
+
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             Tees
                                         </Link>
+
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             Hoodies
                                         </Link>
@@ -215,12 +223,15 @@ onBeforeUnmount(() => {
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             Longsleeve
                                         </Link>
+
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             Shirts
                                         </Link>
+
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             Outerwear
                                         </Link>
+
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             Pants
                                         </Link>
@@ -236,12 +247,15 @@ onBeforeUnmount(() => {
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             Headwear
                                         </Link>
+
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             Bags
                                         </Link>
+
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             Socks
                                         </Link>
+
                                         <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
                                             Jewelry
                                         </Link>
@@ -315,9 +329,18 @@ onBeforeUnmount(() => {
 
                         <div
                             v-if="isAccountOpen"
-                            class="absolute right-0 top-full z-50 mt-5 w-56 border border-neutral-200 bg-white p-5 text-neutral-950 shadow-2xl"
+                            class="absolute right-0 top-full z-50 mt-5 w-60 border border-neutral-200 bg-white p-5 text-neutral-950 shadow-2xl"
                         >
                             <div class="space-y-3 text-sm font-semibold">
+                                <Link
+                                    v-if="isLoggedIn"
+                                    href="/account"
+                                    class="block hover:text-neutral-500"
+                                    @click="closeMenus"
+                                >
+                                    Akun Saya
+                                </Link>
+
                                 <Link
                                     v-if="isLoggedIn"
                                     href="/orders"
@@ -329,20 +352,20 @@ onBeforeUnmount(() => {
 
                                 <Link
                                     v-if="isLoggedIn"
-                                    href="/cart"
-                                    class="block hover:text-neutral-500"
-                                    @click="closeMenus"
-                                >
-                                    Keranjang
-                                </Link>
-
-                                <Link
-                                    v-if="isLoggedIn"
                                     href="/account/addresses"
                                     class="block hover:text-neutral-500"
                                     @click="closeMenus"
                                 >
                                     Alamat Saya
+                                </Link>
+
+                                <Link
+                                    v-if="isLoggedIn"
+                                    href="/cart"
+                                    class="block hover:text-neutral-500"
+                                    @click="closeMenus"
+                                >
+                                    Keranjang
                                 </Link>
 
                                 <Link
@@ -425,6 +448,15 @@ onBeforeUnmount(() => {
                             <Link href="/products" class="block" @click="closeMenus">Sale</Link>
                             <Link href="/products" class="block" @click="closeMenus">Campaign</Link>
                             <Link href="/cart" class="block" @click="closeMenus">Cart</Link>
+
+                            <Link
+                                v-if="isLoggedIn"
+                                href="/account"
+                                class="block"
+                                @click="closeMenus"
+                            >
+                                Account
+                            </Link>
 
                             <Link
                                 v-if="isLoggedIn"
@@ -512,6 +544,7 @@ onBeforeUnmount(() => {
 
                     <div class="mt-5 space-y-3 text-sm text-white/60">
                         <Link href="/orders" class="block hover:text-white">Order Status</Link>
+                        <Link href="/account/addresses" class="block hover:text-white">My Addresses</Link>
                         <a href="#" class="block hover:text-white">FAQ</a>
                         <a href="#" class="block hover:text-white">Shipping</a>
                         <a href="#" class="block hover:text-white">Returns</a>

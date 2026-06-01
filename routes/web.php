@@ -7,6 +7,7 @@ use App\Http\Controllers\Store\CheckoutController;
 use App\Http\Controllers\Store\OrderController;
 use App\Http\Controllers\Store\PaymentController;
 use App\Http\Controllers\Store\AddressController;
+use App\Http\Controllers\Store\AccountController;
 use Illuminate\Support\Facades\Route;
 
 use Inertia\Inertia;
@@ -38,6 +39,9 @@ Route::middleware(['auth'])->group(function () {
         ->name('orders.payment-proof');
         Route::get('/account/addresses', [AddressController::class, 'index'])
     ->name('account.addresses.index');
+
+    Route::get('/account', [AccountController::class, 'index'])
+    ->name('account.index');
 
 Route::post('/account/addresses', [AddressController::class, 'store'])
     ->name('account.addresses.store');
