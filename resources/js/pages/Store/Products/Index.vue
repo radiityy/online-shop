@@ -95,7 +95,7 @@ const resetFilters = () => {
         <header class="sticky top-0 z-50 border-b border-neutral-200 bg-white/90 backdrop-blur">
             <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
                 <Link href="/" class="text-xl font-bold tracking-tight">
-                    ONLINE SHOP
+                    NEVERENDING
                 </Link>
 
                 <nav class="hidden items-center gap-8 text-sm font-medium md:flex">
