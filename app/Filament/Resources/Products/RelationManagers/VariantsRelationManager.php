@@ -2,14 +2,12 @@
 
 namespace App\Filament\Resources\Products\RelationManagers;
 
-use Filament\Actions\AssociateAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\DissociateAction;
-use Filament\Actions\DissociateBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -22,75 +20,94 @@ class VariantsRelationManager extends RelationManager
 {
     protected static string $relationship = 'variants';
 
+    protected static ?string $title = 'Sizes / Stock';
+
+    protected static ?string $modelLabel = 'Size Variant';
+
+    protected static ?string $pluralModelLabel = 'Size Variants';
+
     public function form(Schema $schema): Schema
     {
         return $schema
             ->components([
                 TextInput::make('size')
+                    ->label('Size')
+                    ->placeholder('S / M / L / XL / XXL')
+                    ->required()
+                    ->maxLength(50),
+
+                Hidden::make('color')
                     ->default(null),
-                TextInput::make('color')
-                    ->default(null),
+
                 TextInput::make('sku')
                     ->label('SKU')
-                    ->default(null),
+                    ->placeholder('NE-TEE-BLK-S')
+                    ->maxLength(100),
+
                 TextInput::make('stock')
+                    ->label('Stock')
                     ->required()
                     ->numeric()
+                    ->integer()
+                    ->minValue(0)
                     ->default(0),
+
                 TextInput::make('additional_price')
+                    ->label('Additional Price')
                     ->required()
                     ->numeric()
-                    ->default(0.0)
-                    ->prefix('$'),
+                    ->minValue(0)
+                    ->default(0)
+                    ->prefix('Rp'),
+
                 Toggle::make('is_active')
-                    ->required(),
+                    ->label('Active')
+                    ->required()
+                    ->default(true),
             ]);
     }
 
     public function table(Table $table): Table
     {
         return $table
-            ->recordTitleAttribute('sku')
+            ->recordTitleAttribute('size')
             ->columns([
                 TextColumn::make('size')
-                    ->searchable(),
-                TextColumn::make('color')
-                    ->searchable(),
+                    ->label('Size')
+                    ->searchable()
+                    ->sortable()
+                    ->weight('bold'),
+
                 TextColumn::make('sku')
                     ->label('SKU')
-                    ->searchable(),
+                    ->placeholder('-')
+                    ->searchable()
+                    ->sortable(),
+
                 TextColumn::make('stock')
-                    ->numeric()
+                    ->label('Stock')
                     ->sortable(),
+
                 TextColumn::make('additional_price')
-                    ->money()
+                    ->label('Additional Price')
+                    ->money('IDR')
                     ->sortable(),
+
                 IconColumn::make('is_active')
-                    ->boolean(),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-            ])
-            ->filters([
-                //
+                    ->label('Active')
+                    ->boolean()
+                    ->sortable(),
             ])
             ->headerActions([
-                CreateAction::make(),
-                AssociateAction::make(),
+                CreateAction::make()
+                    ->label('Add Size Variant'),
             ])
             ->recordActions([
                 EditAction::make(),
-                DissociateAction::make(),
                 DeleteAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DissociateBulkAction::make(),
                     DeleteBulkAction::make(),
                 ]),
             ]);

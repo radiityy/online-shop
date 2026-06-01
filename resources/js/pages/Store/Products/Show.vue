@@ -60,7 +60,34 @@ const props = defineProps<{
 }>();
 
 const selectedImage = ref<ProductImage | null>(props.product.images[0] ?? null);
-const selectedVariantId = ref<number | null>(props.product.variants[0]?.id ?? null);
+
+const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+
+const sortedVariants = computed(() => {
+    return [...props.product.variants].sort((a, b) => {
+        const sizeA = (a.size ?? '').toUpperCase();
+        const sizeB = (b.size ?? '').toUpperCase();
+
+        const indexA = sizeOrder.indexOf(sizeA);
+        const indexB = sizeOrder.indexOf(sizeB);
+
+        if (indexA === -1 && indexB === -1) {
+            return sizeA.localeCompare(sizeB);
+        }
+
+        if (indexA === -1) {
+            return 1;
+        }
+
+        if (indexB === -1) {
+            return -1;
+        }
+
+        return indexA - indexB;
+    });
+});
+
+const selectedVariantId = ref<number | null>(sortedVariants.value[0]?.id ?? null);
 const quantity = ref(1);
 const activeTab = ref<'description' | 'sizeGuide'>('description');
 
@@ -98,7 +125,7 @@ const canAddToBag = computed(() => {
 });
 
 const availableSizes = computed(() => {
-    return props.product.variants
+    return sortedVariants.value
         .map((variant) => variant.size)
         .filter(Boolean);
 });
@@ -271,7 +298,7 @@ const checkSize = () => {
                             class="grid grid-cols-4 gap-3 sm:grid-cols-5"
                         >
                             <button
-                                v-for="variant in product.variants"
+                                v-for="variant in sortedVariants"
                                 :key="variant.id"
                                 type="button"
                                 :disabled="variant.stock <= 0"
