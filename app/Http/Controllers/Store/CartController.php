@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Store;
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -52,12 +53,49 @@ class CartController extends Controller
             ];
         })->values();
 
+        $recommendedProducts = Product::query()
+            ->with([
+                'category:id,name,slug',
+                'primaryImage:id,product_id,image_path',
+            ])
+            ->select('products.*')
+            ->selectSub(function ($query) {
+                $query->from('order_items')
+                    ->selectRaw('COALESCE(SUM(quantity), 0)')
+                    ->whereColumn('order_items.product_id', 'products.id');
+            }, 'sold_count')
+            ->where('is_active', true)
+            ->orderByDesc('sold_count')
+            ->latest('products.created_at')
+            ->limit(4)
+            ->get()
+            ->map(function (Product $product) {
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'slug' => $product->slug,
+                    'price' => $product->price,
+                    'sold_count' => (int) $product->sold_count,
+                    'category' => $product->category ? [
+                        'id' => $product->category->id,
+                        'name' => $product->category->name,
+                        'slug' => $product->category->slug,
+                    ] : null,
+                    'primary_image' => $product->primaryImage ? [
+                        'id' => $product->primaryImage->id,
+                        'image_path' => $product->primaryImage->image_path,
+                    ] : null,
+                ];
+            })
+            ->values();
+
         return Inertia::render('Store/Cart/Index', [
             'items' => $items,
             'summary' => [
                 'subtotal' => $items->sum('subtotal'),
                 'total_items' => $items->sum('quantity'),
             ],
+            'recommendedProducts' => $recommendedProducts,
         ]);
     }
 
