@@ -26,19 +26,15 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
     Route::patch('/cart/items/{cartItem}', [CartController::class, 'update'])->name('cart.items.update');
     Route::delete('/cart/items/{cartItem}', [CartController::class, 'destroy'])->name('cart.items.destroy');
-    Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
-    Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
-    Route::patch('/cart/items/{cartItem}', [CartController::class, 'update'])->name('cart.items.update');
-    Route::delete('/cart/items/{cartItem}', [CartController::class, 'destroy'])->name('cart.items.destroy');
 
     Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
     Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
 
+    Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{orderCode}', [OrderController::class, 'show'])->name('orders.show');
 
     Route::post('/orders/{orderCode}/payment-proof', [PaymentController::class, 'uploadProof'])
-    ->name('orders.payment-proof');
+        ->name('orders.payment-proof');
 });
-
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';

@@ -10,6 +10,21 @@ use Inertia\Response;
 
 class OrderController extends Controller
 {
+    public function index(): Response
+    {
+        $orders = Order::query()
+            ->with(['payment', 'shipment'])
+            ->withCount('items')
+            ->where('user_id', Auth::id())
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        return Inertia::render('Store/Orders/Index', [
+            'orders' => $orders,
+        ]);
+    }
+
     public function show(string $orderCode): Response
     {
         $order = Order::query()

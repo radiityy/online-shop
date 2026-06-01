@@ -86,6 +86,7 @@ const removeItem = (item: CartItem) => {
                     <Link href="/" class="hover:text-neutral-500">Home</Link>
                     <Link href="/products" class="hover:text-neutral-500">Shop</Link>
                     <Link href="/cart" class="text-neutral-950 underline underline-offset-4">Cart</Link>
+                    <Link href="/orders" class="hover:text-neutral-500">Orders</Link>
                 </nav>
 
                 <div class="flex items-center gap-4 text-sm font-medium">
