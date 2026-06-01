@@ -45,7 +45,6 @@ class CartController extends Controller
                 'variant' => [
                     'id' => $item->variant->id,
                     'size' => $item->variant->size,
-                    'color' => $item->variant->color,
                     'sku' => $item->variant->sku,
                     'stock' => $item->variant->stock,
                     'additional_price' => $item->variant->additional_price,
@@ -67,6 +66,7 @@ class CartController extends Controller
         $validated = $request->validate([
             'product_variant_id' => ['required', 'exists:product_variants,id'],
             'quantity' => ['required', 'integer', 'min:1'],
+            'buy_now' => ['nullable', 'boolean'],
         ]);
 
         $variant = ProductVariant::query()
@@ -119,8 +119,13 @@ class CartController extends Controller
             ]);
         }
 
+        if ($request->boolean('buy_now')) {
+            return redirect()->route('checkout.index')
+                ->with('success', 'Produk berhasil ditambahkan. Lanjutkan checkout.');
+        }
+
         return redirect()->route('cart.index')
-            ->with('success', 'Produk berhasil ditambahkan ke keranjang.');
+            ->with('success', 'Produk berhasil ditambahkan ke bag.');
     }
 
     public function update(Request $request, CartItem $cartItem): RedirectResponse
@@ -145,7 +150,7 @@ class CartController extends Controller
             'quantity' => $validated['quantity'],
         ]);
 
-        return back()->with('success', 'Keranjang berhasil diperbarui.');
+        return back()->with('success', 'Bag berhasil diperbarui.');
     }
 
     public function destroy(CartItem $cartItem): RedirectResponse
@@ -158,6 +163,6 @@ class CartController extends Controller
 
         $cartItem->delete();
 
-        return back()->with('success', 'Produk berhasil dihapus dari keranjang.');
+        return back()->with('success', 'Produk berhasil dihapus dari bag.');
     }
 }

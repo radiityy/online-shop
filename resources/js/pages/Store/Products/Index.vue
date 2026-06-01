@@ -71,6 +71,7 @@ const applyFilters = () => {
         },
         {
             preserveState: true,
+            preserveScroll: true,
             replace: true,
         },
     );
@@ -85,6 +86,7 @@ const resetFilters = () => {
         {},
         {
             preserveState: true,
+            preserveScroll: true,
             replace: true,
         },
     );
@@ -93,7 +95,7 @@ const resetFilters = () => {
 
 <template>
     <StoreLayout>
-        <main class="mx-auto max-w-[1840px] px-6 pt-32 pb-20 sm:px-10 lg:px-[7.5vw]">
+        <main class="mx-auto max-w-[1840px] px-6 pb-20 pt-32 sm:px-10 lg:px-[4.5vw]">
             <section class="mb-12">
                 <p class="text-xs font-black uppercase tracking-[0.3em] text-neutral-500">
                     Shop
@@ -101,7 +103,7 @@ const resetFilters = () => {
 
                 <div class="mt-4 flex flex-col justify-between gap-6 md:flex-row md:items-end">
                     <div>
-                        <h1 class="text-5xl font-black uppercase tracking-[-0.04em] md:text-7xl">
+                        <h1 class="text-5xl font-black uppercase tracking-[-0.045em] md:text-7xl">
                             All Products
                         </h1>
 
@@ -130,7 +132,9 @@ const resetFilters = () => {
                         v-model="selectedCategory"
                         class="rounded-none border border-neutral-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-950"
                     >
-                        <option value="">All categories</option>
+                        <option value="">
+                            All categories
+                        </option>
 
                         <option
                             v-for="category in categories"
