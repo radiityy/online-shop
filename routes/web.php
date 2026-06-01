@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Store\HomeController;
 use App\Http\Controllers\Store\ProductController;
+use App\Http\Controllers\Store\CartController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -14,6 +15,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
         return Inertia::render('Dashboard');
     })->name('dashboard');
+});
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
+    Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
+    Route::patch('/cart/items/{cartItem}', [CartController::class, 'update'])->name('cart.items.update');
+    Route::delete('/cart/items/{cartItem}', [CartController::class, 'destroy'])->name('cart.items.destroy');
 });
 
 require __DIR__ . '/settings.php';

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 type Category = {
@@ -62,6 +62,14 @@ const selectedImage = ref<ProductImage | null>(props.product.images[0] ?? null);
 const selectedVariantId = ref<number | null>(props.product.variants[0]?.id ?? null);
 const quantity = ref(1);
 
+const form = useForm<{
+    product_variant_id: number | null;
+    quantity: number;
+}>({
+    product_variant_id: selectedVariantId.value,
+    quantity: quantity.value,
+});
+
 const selectedVariant = computed(() => {
     return props.product.variants.find((variant) => variant.id === selectedVariantId.value) ?? null;
 });
@@ -82,7 +90,9 @@ const canAddToCart = computed(() => {
 });
 
 const storageUrl = (path: string | null | undefined) => {
-    if (!path) return '/placeholder-product.jpg';
+    if (!path) {
+        return '/placeholder-product.jpg';
+    }
 
     return `/storage/${path}`;
 };
@@ -101,6 +111,22 @@ const variantLabel = (variant: ProductVariant) => {
     return parts.length ? parts.join(' / ') : variant.sku ?? 'Default';
 };
 
+const selectVariant = (variant: ProductVariant) => {
+    if (variant.stock <= 0) {
+        return;
+    }
+
+    selectedVariantId.value = variant.id;
+
+    if (quantity.value > variant.stock) {
+        quantity.value = variant.stock;
+    }
+
+    if (quantity.value < 1) {
+        quantity.value = 1;
+    }
+};
+
 const increaseQuantity = () => {
     if (quantity.value < availableStock.value) {
         quantity.value++;
@@ -111,6 +137,21 @@ const decreaseQuantity = () => {
     if (quantity.value > 1) {
         quantity.value--;
     }
+};
+
+const addToCart = () => {
+    if (!canAddToCart.value || form.processing) {
+        return;
+    }
+
+    form.clearErrors();
+
+    form.product_variant_id = selectedVariantId.value;
+    form.quantity = quantity.value;
+
+    form.post('/cart', {
+        preserveScroll: true,
+    });
 };
 </script>
 
@@ -124,7 +165,9 @@ const decreaseQuantity = () => {
 
                 <nav class="hidden items-center gap-8 text-sm font-medium md:flex">
                     <Link href="/" class="hover:text-neutral-500">Home</Link>
-                    <Link href="/products" class="text-neutral-950 underline underline-offset-4">Shop</Link>
+                    <Link href="/products" class="text-neutral-950 underline underline-offset-4">
+                        Shop
+                    </Link>
                     <Link href="/cart" class="hover:text-neutral-500">Cart</Link>
                 </nav>
 
@@ -208,6 +251,7 @@ const decreaseQuantity = () => {
                     <div class="mt-8">
                         <div class="mb-3 flex items-center justify-between">
                             <p class="font-bold">Select Variant</p>
+
                             <p
                                 v-if="selectedVariant"
                                 class="text-sm text-neutral-500"
@@ -232,7 +276,7 @@ const decreaseQuantity = () => {
                                         : 'border-neutral-300 bg-white text-neutral-950 hover:border-neutral-950',
                                     variant.stock <= 0 ? 'cursor-not-allowed opacity-40' : '',
                                 ]"
-                                @click="selectedVariantId = variant.id"
+                                @click="selectVariant(variant)"
                             >
                                 {{ variantLabel(variant) }}
                             </button>
@@ -244,6 +288,13 @@ const decreaseQuantity = () => {
                         >
                             No active variants available.
                         </div>
+
+                        <p
+                            v-if="form.errors.product_variant_id"
+                            class="mt-3 text-sm font-medium text-red-600"
+                        >
+                            {{ form.errors.product_variant_id }}
+                        </p>
                     </div>
 
                     <div class="mt-8">
@@ -252,7 +303,8 @@ const decreaseQuantity = () => {
                         <div class="inline-flex items-center rounded-full border border-neutral-300">
                             <button
                                 type="button"
-                                class="px-5 py-3 text-lg"
+                                class="px-5 py-3 text-lg disabled:cursor-not-allowed disabled:opacity-40"
+                                :disabled="quantity <= 1"
                                 @click="decreaseQuantity"
                             >
                                 -
@@ -264,24 +316,36 @@ const decreaseQuantity = () => {
 
                             <button
                                 type="button"
-                                class="px-5 py-3 text-lg"
+                                class="px-5 py-3 text-lg disabled:cursor-not-allowed disabled:opacity-40"
+                                :disabled="quantity >= availableStock"
                                 @click="increaseQuantity"
                             >
                                 +
                             </button>
                         </div>
+
+                        <p
+                            v-if="form.errors.quantity"
+                            class="mt-3 text-sm font-medium text-red-600"
+                        >
+                            {{ form.errors.quantity }}
+                        </p>
                     </div>
 
                     <button
                         type="button"
-                        :disabled="!canAddToCart"
+                        :disabled="!canAddToCart || form.processing"
                         class="mt-8 w-full rounded-full bg-neutral-950 px-8 py-4 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
+                        @click="addToCart"
                     >
-                        Add To Cart
+                        {{ form.processing ? 'Adding...' : 'Add To Cart' }}
                     </button>
 
-                    <p class="mt-4 text-center text-xs text-neutral-500">
-                        Cart functionality will be connected in the next step.
+                    <p
+                        v-if="!selectedVariant"
+                        class="mt-4 text-center text-xs text-neutral-500"
+                    >
+                        Please select an available variant before adding this product to cart.
                     </p>
                 </div>
             </section>
