@@ -223,12 +223,12 @@ const removeItem = (item: CartItem) => {
                         </div>
                     </div>
 
-                    <button
-                        type="button"
-                        class="mt-6 w-full rounded-full bg-neutral-950 px-6 py-4 text-sm font-bold uppercase tracking-[0.2em] text-white hover:bg-neutral-800"
+                    <Link
+                        href="/checkout"
+                        class="mt-6 flex w-full justify-center rounded-full bg-neutral-950 px-6 py-4 text-sm font-bold uppercase tracking-[0.2em] text-white hover:bg-neutral-800"
                     >
                         Checkout
-                    </button>
+                    </Link>
 
                     <p class="mt-4 text-center text-xs text-neutral-500">
                         Checkout will be connected in the next step.
