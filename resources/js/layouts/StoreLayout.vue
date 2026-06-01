@@ -8,6 +8,12 @@ type PageProps = {
     };
 };
 
+const props = withDefaults(defineProps<{
+    transparentHeader?: boolean;
+}>(), {
+    transparentHeader: false,
+});
+
 const page = usePage();
 
 const isLoggedIn = computed(() => Boolean((page.props as PageProps).auth?.user));
@@ -33,12 +39,20 @@ const handleScroll = () => {
     isScrolled.value = window.scrollY > 40;
 };
 
+const showTransparentHeader = computed(() => {
+    return props.transparentHeader && !isScrolled.value && !isMobileMenuOpen.value;
+});
+
+const showAnnouncement = computed(() => {
+    return props.transparentHeader && !isScrolled.value && !isMobileMenuOpen.value;
+});
+
 const headerClass = computed(() => {
-    if (isScrolled.value || isMobileMenuOpen.value) {
-        return 'top-0 border-b border-neutral-200 bg-white/95 text-neutral-950 shadow-sm backdrop-blur-xl';
+    if (showTransparentHeader.value) {
+        return 'top-[28px] border-b border-white/10 bg-transparent text-white';
     }
 
-    return 'top-[28px] border-b border-white/10 bg-transparent text-white';
+    return 'top-0 border-b border-neutral-200 bg-white/95 text-neutral-950 shadow-sm backdrop-blur-xl';
 });
 
 onMounted(() => {
@@ -54,7 +68,7 @@ onBeforeUnmount(() => {
 <template>
     <div class="min-h-screen bg-white text-neutral-950">
         <div
-            v-show="!isScrolled && !isMobileMenuOpen"
+            v-show="showAnnouncement"
             class="fixed left-0 right-0 top-0 z-[60] overflow-hidden bg-neutral-950 py-1.5 text-white transition duration-300"
         >
             <div class="marquee-track text-[10px] font-bold uppercase tracking-[0.25em]">

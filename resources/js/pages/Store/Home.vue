@@ -48,7 +48,7 @@ const formatPrice = (price: string | number) => {
 </script>
 
 <template>
-    <StoreLayout>
+    <StoreLayout transparent-header>
         <main>
             <section class="relative">
                 <div
