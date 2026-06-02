@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class Order extends Model
 {
@@ -46,7 +47,56 @@ class Order extends Model
 
     protected static function booted(): void
     {
+        static::updating(function (Order $order): void {
+            if (! $order->stock_released) {
+                return;
+            }
+
+            $activePaymentStatuses = [
+                'pending',
+                'waiting_confirmation',
+                'paid',
+            ];
+
+            $activeOrderStatuses = [
+                'pending',
+                'processing',
+                'packed',
+                'shipped',
+                'delivered',
+                'completed',
+            ];
+
+            $activeShippingStatuses = [
+                'not_shipped',
+                'packed',
+                'shipped',
+                'delivered',
+            ];
+
+            $isTryingToReactivate =
+                (
+                    $order->isDirty('payment_status')
+                    && in_array($order->payment_status, $activePaymentStatuses, true)
+                )
+                || (
+                    $order->isDirty('order_status')
+                    && in_array($order->order_status, $activeOrderStatuses, true)
+                )
+                || (
+                    $order->isDirty('shipping_status')
+                    && in_array($order->shipping_status, $activeShippingStatuses, true)
+                );
+
+            if ($isTryingToReactivate) {
+                throw ValidationException::withMessages([
+                    'payment_status' => 'This order has already been cancelled, failed, expired, or refunded. Please ask the customer to place a new order.',
+                ]);
+            }
+        });
+
         static::updated(function (Order $order): void {
+            $order->syncRelatedStatuses();
             $order->releaseReservedStockIfNeeded();
         });
     }
@@ -74,6 +124,21 @@ class Order extends Model
     public function shipment(): HasOne
     {
         return $this->hasOne(Shipment::class);
+    }
+
+    public function syncRelatedStatuses(): void
+    {
+        if ($this->wasChanged('payment_status') && $this->payment) {
+            $this->payment->updateQuietly([
+                'status' => $this->payment_status,
+            ]);
+        }
+
+        if ($this->wasChanged('shipping_status') && $this->shipment) {
+            $this->shipment->updateQuietly([
+                'status' => $this->shipping_status,
+            ]);
+        }
     }
 
     public function shouldReleaseStock(): bool
