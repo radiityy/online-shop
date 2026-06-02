@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
 import StoreLayout from '@/layouts/StoreLayout.vue';
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 type Category = {
     id: number;
@@ -15,7 +15,7 @@ type Product = {
     slug: string;
     price: string;
     weight: number;
-    category?: Category;
+    category?: Category | null;
     primary_image?: {
         id: number;
         image_path: string;
@@ -48,6 +48,37 @@ const props = defineProps<{
 const search = ref(props.filters.search ?? '');
 const selectedCategory = ref(props.filters.category ?? '');
 
+const activeCategory = computed(() => {
+    return props.categories.find((category) => category.slug === selectedCategory.value) ?? null;
+});
+
+const hasFilters = computed(() => {
+    return search.value.trim() !== '' || selectedCategory.value !== '';
+});
+
+const pageTitle = computed(() => {
+    if (activeCategory.value) {
+        return activeCategory.value.name;
+    }
+
+    if (search.value.trim() !== '') {
+        return 'Search Results';
+    }
+
+    return 'All Products';
+});
+
+watch(
+    () => props.filters,
+    (filters) => {
+        search.value = filters.search ?? '';
+        selectedCategory.value = filters.category ?? '';
+    },
+    {
+        deep: true,
+    },
+);
+
 const storageUrl = (path: string | null | undefined) => {
     if (!path) return '/placeholder-product.jpg';
 
@@ -63,10 +94,12 @@ const formatPrice = (price: string | number) => {
 };
 
 const applyFilters = () => {
+    const keyword = search.value.trim();
+
     router.get(
         '/products',
         {
-            search: search.value || undefined,
+            search: keyword || undefined,
             category: selectedCategory.value || undefined,
         },
         {
@@ -104,12 +137,31 @@ const resetFilters = () => {
                 <div class="mt-4 flex flex-col justify-between gap-6 md:flex-row md:items-end">
                     <div>
                         <h1 class="text-5xl font-black uppercase tracking-[-0.045em] md:text-7xl">
-                            All Products
+                            {{ pageTitle }}
                         </h1>
 
                         <p class="mt-4 max-w-xl text-sm leading-7 text-neutral-600 md:text-base">
                             Explore NEVERENDING daily wear pieces built for endless rotation.
                         </p>
+
+                        <div
+                            v-if="hasFilters"
+                            class="mt-5 flex flex-wrap gap-2"
+                        >
+                            <span
+                                v-if="search.trim()"
+                                class="border border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-neutral-600"
+                            >
+                                Search: {{ search }}
+                            </span>
+
+                            <span
+                                v-if="activeCategory"
+                                class="border border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-neutral-600"
+                            >
+                                Category: {{ activeCategory.name }}
+                            </span>
+                        </div>
                     </div>
 
                     <p class="text-xs font-black uppercase tracking-[0.22em] text-neutral-500">
@@ -131,6 +183,7 @@ const resetFilters = () => {
                     <select
                         v-model="selectedCategory"
                         class="rounded-none border border-neutral-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-950"
+                        @change="applyFilters"
                     >
                         <option value="">
                             All categories
@@ -150,7 +203,7 @@ const resetFilters = () => {
                         class="bg-neutral-950 px-7 py-3 text-xs font-black uppercase tracking-[0.2em] text-white transition hover:bg-neutral-800"
                         @click="applyFilters"
                     >
-                        Apply
+                        Search
                     </button>
 
                     <button
@@ -205,13 +258,26 @@ const resetFilters = () => {
                     v-else
                     class="border border-dashed border-neutral-300 p-14 text-center"
                 >
-                    <h2 class="text-2xl font-black uppercase tracking-tight">
+                    <p class="text-xs font-black uppercase tracking-[0.3em] text-neutral-500">
+                        No Products
+                    </p>
+
+                    <h2 class="mt-4 text-3xl font-black uppercase tracking-[-0.04em]">
                         No products found
                     </h2>
 
-                    <p class="mt-3 text-neutral-500">
+                    <p class="mx-auto mt-4 max-w-md text-sm leading-7 text-neutral-500">
                         Try another keyword or category.
                     </p>
+
+                    <button
+                        v-if="hasFilters"
+                        type="button"
+                        class="mt-7 inline-flex border border-neutral-950 bg-white px-7 py-3 text-xs font-black uppercase tracking-[0.2em] text-neutral-950 transition hover:bg-neutral-950 hover:text-white"
+                        @click="resetFilters"
+                    >
+                        Reset Filters
+                    </button>
                 </div>
 
                 <div

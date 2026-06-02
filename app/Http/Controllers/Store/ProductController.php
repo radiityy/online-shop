@@ -13,8 +13,8 @@ class ProductController extends Controller
 {
     public function index(Request $request): Response
     {
-        $search = $request->query('search');
-        $categorySlug = $request->query('category');
+        $search = trim((string) $request->query('search', ''));
+        $categorySlug = trim((string) $request->query('category', ''));
 
         $categories = Category::query()
             ->where('is_active', true)
@@ -31,10 +31,20 @@ class ProductController extends Controller
                 'primaryImage:id,product_id,image_path',
             ])
             ->where('is_active', true)
-            ->when($search, function ($query) use ($search) {
-                $query->where('name', 'like', '%' . $search . '%');
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($searchQuery) use ($search) {
+                    $searchQuery
+                        ->where('products.name', 'like', '%' . $search . '%')
+                        ->orWhere('products.slug', 'like', '%' . $search . '%')
+                        ->orWhere('products.description', 'like', '%' . $search . '%')
+                        ->orWhereHas('category', function ($categoryQuery) use ($search) {
+                            $categoryQuery
+                                ->where('name', 'like', '%' . $search . '%')
+                                ->orWhere('slug', 'like', '%' . $search . '%');
+                        });
+                });
             })
-            ->when($categorySlug, function ($query) use ($categorySlug) {
+            ->when($categorySlug !== '', function ($query) use ($categorySlug) {
                 $query->whereHas('category', function ($categoryQuery) use ($categorySlug) {
                     $categoryQuery->where('slug', $categorySlug);
                 });
@@ -47,8 +57,8 @@ class ProductController extends Controller
             'categories' => $categories,
             'products' => $products,
             'filters' => [
-                'search' => $search,
-                'category' => $categorySlug,
+                'search' => $search !== '' ? $search : null,
+                'category' => $categorySlug !== '' ? $categorySlug : null,
             ],
         ]);
     }
@@ -65,8 +75,8 @@ class ProductController extends Controller
                 },
                 'variants' => function ($query) {
                     $query->where('is_active', true)
-                        ->orderBy('size')
-                        ->orderBy('color');
+                        ->orderByRaw("FIELD(UPPER(size), 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL')")
+                        ->orderBy('size');
                 },
             ])
             ->where('is_active', true)

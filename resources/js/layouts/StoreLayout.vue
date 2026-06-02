@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 type PageProps = {
@@ -38,6 +38,8 @@ const isShopOpen = ref(false);
 const isAccountOpen = ref(false);
 const isMobileMenuOpen = ref(false);
 const isScrolled = ref(false);
+const isSearchOpen = ref(false);
+const searchKeyword = ref('');
 
 const menuGroups: MenuGroup[] = [
     {
@@ -81,16 +83,80 @@ const toggleMobileMenu = () => {
     isAccountOpen.value = false;
 };
 
+const openSearch = () => {
+    isShopOpen.value = false;
+    isAccountOpen.value = false;
+    isMobileMenuOpen.value = false;
+
+    handleScroll();
+
+    const params = new URLSearchParams(window.location.search);
+    searchKeyword.value = params.get('search') ?? '';
+    isSearchOpen.value = true;
+
+    setTimeout(() => {
+        document.getElementById('store-search-input')?.focus();
+    }, 50);
+};
+
+const closeSearch = () => {
+    isSearchOpen.value = false;
+};
+
+const submitSearch = () => {
+    const keyword = searchKeyword.value.trim();
+
+    isSearchOpen.value = false;
+
+    router.get(
+        '/products',
+        {
+            search: keyword || undefined,
+        },
+        {
+            preserveScroll: true,
+            replace: true,
+        },
+    );
+};
+
+const quickSearch = (keyword: string) => {
+    searchKeyword.value = keyword;
+    submitSearch();
+};
+
+const handleKeydown = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+        closeSearch();
+    }
+};
+
 const handleScroll = () => {
-    isScrolled.value = window.scrollY > 40;
+    const scrollTop =
+        window.scrollY ||
+        document.documentElement.scrollTop ||
+        document.body.scrollTop ||
+        0;
+
+    isScrolled.value = scrollTop > 40;
 };
 
 const showTransparentHeader = computed(() => {
-    return props.transparentHeader && !isScrolled.value && !isMobileMenuOpen.value;
+    return (
+        props.transparentHeader === true &&
+        !isScrolled.value &&
+        !isMobileMenuOpen.value &&
+        !isSearchOpen.value
+    );
 });
 
 const showAnnouncement = computed(() => {
-    return props.transparentHeader && !isScrolled.value && !isMobileMenuOpen.value;
+    return (
+        props.transparentHeader === true &&
+        !isScrolled.value &&
+        !isMobileMenuOpen.value &&
+        !isSearchOpen.value
+    );
 });
 
 const headerClass = computed(() => {
@@ -103,11 +169,17 @@ const headerClass = computed(() => {
 
 onMounted(() => {
     handleScroll();
-    window.addEventListener('scroll', handleScroll);
+
+    window.addEventListener('scroll', handleScroll, {
+        passive: true,
+    });
+
+    window.addEventListener('keydown', handleKeydown);
 });
 
 onBeforeUnmount(() => {
     window.removeEventListener('scroll', handleScroll);
+    window.removeEventListener('keydown', handleKeydown);
 });
 </script>
 
@@ -283,7 +355,12 @@ onBeforeUnmount(() => {
                 </Link>
 
                 <div class="absolute right-[3vw] top-1/2 flex -translate-y-1/2 items-center gap-6">
-                    <Link href="/products" aria-label="Search" class="transition hover:opacity-60">
+                    <button
+                        type="button"
+                        aria-label="Search"
+                        class="transition hover:opacity-60"
+                        @click="openSearch"
+                    >
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
                             class="h-6 w-6"
@@ -298,7 +375,7 @@ onBeforeUnmount(() => {
                                 d="m21 21-4.35-4.35m1.1-5.4a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"
                             />
                         </svg>
-                    </Link>
+                    </button>
 
                     <div class="relative">
                         <button
@@ -451,6 +528,14 @@ onBeforeUnmount(() => {
                                 Shop
                             </Link>
 
+                            <button
+                                type="button"
+                                class="block text-left"
+                                @click="openSearch"
+                            >
+                                Search
+                            </button>
+
                             <Link href="/products" class="block" @click="closeMenus">
                                 Collection
                             </Link>
@@ -527,6 +612,88 @@ onBeforeUnmount(() => {
                 </div>
             </div>
         </header>
+
+        <div
+            v-if="isSearchOpen"
+            class="fixed inset-0 z-[120] bg-neutral-950/80 px-6 backdrop-blur-sm"
+            @click.self="closeSearch"
+        >
+            <div class="mx-auto mt-28 max-w-4xl border border-white/10 bg-white p-6 shadow-2xl md:mt-36 md:p-8">
+                <div class="mb-6 flex items-center justify-between gap-5">
+                    <div>
+                        <p class="text-xs font-black uppercase tracking-[0.3em] text-neutral-500">
+                            Search
+                        </p>
+
+                        <h2 class="mt-2 text-3xl font-black uppercase tracking-[-0.04em] md:text-5xl">
+                            Find Your Rotation
+                        </h2>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="text-xs font-black uppercase tracking-[0.2em] text-neutral-500 transition hover:text-neutral-950"
+                        @click="closeSearch"
+                    >
+                        Close
+                    </button>
+                </div>
+
+                <form
+                    class="flex flex-col gap-3 md:flex-row"
+                    @submit.prevent="submitSearch"
+                >
+                    <input
+                        id="store-search-input"
+                        v-model="searchKeyword"
+                        type="text"
+                        placeholder="Search tees, hoodies, bags..."
+                        class="min-h-14 flex-1 border border-neutral-300 bg-white px-5 text-base font-bold outline-none transition focus:border-neutral-950"
+                    />
+
+                    <button
+                        type="submit"
+                        class="min-h-14 bg-neutral-950 px-8 text-xs font-black uppercase tracking-[0.22em] text-white transition hover:bg-neutral-800"
+                    >
+                        Search
+                    </button>
+                </form>
+
+                <div class="mt-6 flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        class="border border-neutral-200 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-neutral-600 transition hover:border-neutral-950 hover:text-neutral-950"
+                        @click="quickSearch('tees')"
+                    >
+                        Tees
+                    </button>
+
+                    <button
+                        type="button"
+                        class="border border-neutral-200 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-neutral-600 transition hover:border-neutral-950 hover:text-neutral-950"
+                        @click="quickSearch('hoodies')"
+                    >
+                        Hoodies
+                    </button>
+
+                    <button
+                        type="button"
+                        class="border border-neutral-200 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-neutral-600 transition hover:border-neutral-950 hover:text-neutral-950"
+                        @click="quickSearch('bags')"
+                    >
+                        Bags
+                    </button>
+
+                    <button
+                        type="button"
+                        class="border border-neutral-200 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-neutral-600 transition hover:border-neutral-950 hover:text-neutral-950"
+                        @click="quickSearch('outerwear')"
+                    >
+                        Outerwear
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <slot />
 
