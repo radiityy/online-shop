@@ -8,13 +8,20 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rules\File;
 
 class PaymentController extends Controller
 {
     public function uploadProof(Request $request, string $orderCode): RedirectResponse
     {
         $validated = $request->validate([
-            'proof_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'proof_image' => [
+                'required',
+                File::image()
+                    ->types(['jpg', 'jpeg', 'png', 'webp'])
+                    ->max(2048),
+                'dimensions:max_width=6000,max_height=6000',
+            ],
         ]);
 
         $order = Order::query()
@@ -35,32 +42,39 @@ class PaymentController extends Controller
             ]);
         }
 
-        if (in_array($order->order_status, ['cancelled'], true)) {
+        if ($order->order_status === 'cancelled') {
             return back()->withErrors([
                 'proof_image' => 'This order has been cancelled and cannot receive payment proof.',
             ]);
         }
 
-        if (in_array($order->shipping_status, ['returned'], true)) {
+        if ($order->shipping_status === 'returned') {
             return back()->withErrors([
                 'proof_image' => 'This order has been returned and cannot receive payment proof.',
             ]);
         }
 
-        if ($order->payment->proof_image) {
-            Storage::disk('public')->delete($order->payment->proof_image);
+        $oldProofImage = $order->payment->proof_image;
+        $newProofImage = $validated['proof_image']->store('payment-proofs', 'public');
+
+        try {
+            $order->payment->update([
+                'proof_image' => $newProofImage,
+                'status' => 'waiting_confirmation',
+            ]);
+
+            $order->update([
+                'payment_status' => 'waiting_confirmation',
+            ]);
+
+            if ($oldProofImage) {
+                Storage::disk('public')->delete($oldProofImage);
+            }
+        } catch (\Throwable $exception) {
+            Storage::disk('public')->delete($newProofImage);
+
+            throw $exception;
         }
-
-        $path = $validated['proof_image']->store('payment-proofs', 'public');
-
-        $order->payment->update([
-            'proof_image' => $path,
-            'status' => 'waiting_confirmation',
-        ]);
-
-        $order->update([
-            'payment_status' => 'waiting_confirmation',
-        ]);
 
         return back()->with('success', 'Payment proof uploaded. We are checking your payment now.');
     }

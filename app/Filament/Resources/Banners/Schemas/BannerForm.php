@@ -41,11 +41,23 @@ class BannerForm
                                 FileUpload::make('image_path')
                                     ->label('Banner Image')
                                     ->image()
+                                    ->acceptedFileTypes([
+                                        'image/jpeg',
+                                        'image/png',
+                                        'image/webp',
+                                    ])
+                                    ->maxSize(4096)
                                     ->disk('public')
                                     ->directory('banners')
                                     ->visibility('public')
+                                    ->imageEditor()
+                                    ->imageResizeMode('cover')
+                                    ->imageCropAspectRatio('16:9')
+                                    ->imageResizeTargetWidth('1920')
+                                    ->imageResizeTargetHeight('1080')
                                     ->required()
-                                    ->columnSpanFull(),
+                                    ->columnSpanFull()
+                                    ->helperText('Gunakan JPG, PNG, atau WEBP. Maksimal 4MB. Rekomendasi rasio 16:9.'),
 
                                 TextInput::make('sort_order')
                                     ->label('Sort Order')

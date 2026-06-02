@@ -2,15 +2,15 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
+use Closure;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Schema;
-use Closure;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
 
 class ProductForm
 {
@@ -51,31 +51,31 @@ class ProductForm
                                     ->numeric()
                                     ->minValue(0)
                                     ->prefix('Rp'),
-                                
-                            TextInput::make('sale_price')
-                                ->label('Sale Price')
-                                ->numeric()
-                                ->minValue(0)
-                                ->prefix('Rp')
-                                ->helperText('Kosongkan jika produk tidak sedang diskon. Sale price harus lebih kecil dari price.')
-                                ->rules([
-                                    'nullable',
-                                    'numeric',
-                                    function (Get $get): Closure {
-                                        return function (string $attribute, mixed $value, Closure $fail) use ($get): void {
-                                            if ($value === null || $value === '') {
-                                                return;
-                                            }
 
-                                            $price = (float) ($get('price') ?? 0);
-                                            $salePrice = (float) $value;
+                                TextInput::make('sale_price')
+                                    ->label('Sale Price')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->prefix('Rp')
+                                    ->helperText('Kosongkan jika produk tidak sedang diskon. Sale price harus lebih kecil dari price.')
+                                    ->rules([
+                                        'nullable',
+                                        'numeric',
+                                        function (Get $get): Closure {
+                                            return function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                                                if ($value === null || $value === '') {
+                                                    return;
+                                                }
 
-                                            if ($price > 0 && $salePrice >= $price) {
-                                                $fail('Sale price harus lebih kecil dari price.');
-                                            }
-                                        };
-                                    },
-                                ]),
+                                                $price = (float) ($get('price') ?? 0);
+                                                $salePrice = (float) $value;
+
+                                                if ($price > 0 && $salePrice >= $price) {
+                                                    $fail('Sale price harus lebih kecil dari price.');
+                                                }
+                                            };
+                                        },
+                                    ]),
 
                                 TextInput::make('weight')
                                     ->label('Weight')
