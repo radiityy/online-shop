@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 type PageProps = {
     auth?: {
@@ -34,6 +34,43 @@ const page = usePage();
 const isLoggedIn = computed(() => Boolean((page.props as PageProps).auth?.user));
 const flashSuccess = computed(() => (page.props as PageProps).flash?.success);
 const flashError = computed(() => (page.props as PageProps).flash?.error);
+const showFlashSuccess = ref(false);
+const showFlashError = ref(false);
+
+let flashTimer: number | undefined;
+
+const resetFlashTimer = () => {
+    if (flashTimer) {
+        window.clearTimeout(flashTimer);
+    }
+
+    flashTimer = window.setTimeout(() => {
+        showFlashSuccess.value = false;
+        showFlashError.value = false;
+    }, 3000);
+};
+
+watch(
+    flashSuccess,
+    (value) => {
+        if (value) {
+            showFlashSuccess.value = true;
+            resetFlashTimer();
+        }
+    },
+    { immediate: true },
+);
+
+watch(
+    flashError,
+    (value) => {
+        if (value) {
+            showFlashError.value = true;
+            resetFlashTimer();
+        }
+    },
+    { immediate: true },
+);
 const cartCount = computed(() => Number((page.props as PageProps).cart_count ?? 0));
 
 const isShopOpen = ref(false);
@@ -190,6 +227,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
     window.removeEventListener('scroll', handleScroll);
     window.removeEventListener('keydown', handleKeydown);
+
+    if (flashTimer) {
+    window.clearTimeout(flashTimer);
+}
 });
 </script>
 
@@ -202,17 +243,53 @@ onBeforeUnmount(() => {
             <div class="h-full w-1/2 animate-[neverending-loading_1s_ease-in-out_infinite] bg-neutral-950"></div>
         </div>
         <div
-            v-if="flashSuccess"
-            class="fixed right-5 top-24 z-[100] max-w-sm border border-green-200 bg-green-50 px-5 py-4 text-sm font-bold text-green-700 shadow-xl"
+            v-if="flashSuccess && showFlashSuccess"
+            class="fixed right-5 top-24 z-[100] w-[calc(100%-2.5rem)] max-w-sm border border-green-200 bg-green-50 p-5 text-sm text-green-800 shadow-2xl"
         >
-            {{ flashSuccess }}
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-[11px] font-black uppercase tracking-[0.22em] text-green-700">
+                        Success
+                    </p>
+
+                    <p class="mt-2 font-bold leading-6">
+                        {{ flashSuccess }}
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    class="text-xs font-black uppercase tracking-[0.18em] text-green-700 transition hover:text-green-950"
+                    @click="showFlashSuccess = false"
+                >
+                    X
+                </button>
+            </div>
         </div>
 
         <div
-            v-if="flashError"
-            class="fixed right-5 top-24 z-[100] max-w-sm border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700 shadow-xl"
+            v-if="flashError && showFlashError"
+            class="fixed right-5 top-24 z-[100] w-[calc(100%-2.5rem)] max-w-sm border border-red-200 bg-red-50 p-5 text-sm text-red-800 shadow-2xl"
         >
-            {{ flashError }}
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-[11px] font-black uppercase tracking-[0.22em] text-red-700">
+                        Error
+                    </p>
+
+                    <p class="mt-2 font-bold leading-6">
+                        {{ flashError }}
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    class="text-xs font-black uppercase tracking-[0.18em] text-red-700 transition hover:text-red-950"
+                    @click="showFlashError = false"
+                >
+                    X
+                </button>
+            </div>
         </div>
 
         <div
