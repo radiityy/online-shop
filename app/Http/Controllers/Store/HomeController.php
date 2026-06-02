@@ -33,7 +33,18 @@ class HomeController extends Controller
                 'category:id,name,slug',
                 'primaryImage:id,product_id,image_path',
             ])
+            ->select('products.*')
+            ->selectSub(function ($query) {
+                $query->from('product_variants')
+                    ->selectRaw('COALESCE(SUM(stock), 0)')
+                    ->whereColumn('product_variants.product_id', 'products.id')
+                    ->where('product_variants.is_active', true);
+            }, 'stock_total')
             ->where('is_active', true)
+            ->whereHas('variants', function ($query) {
+                $query->where('is_active', true)
+                    ->where('stock', '>', 0);
+            })
             ->latest()
             ->limit(8)
             ->get()
@@ -43,6 +54,10 @@ class HomeController extends Controller
                     'name' => $product->name,
                     'slug' => $product->slug,
                     'price' => $product->price,
+                    'sale_price' => $product->sale_price,
+                    'final_price' => $product->final_price,
+                    'is_on_sale' => $product->is_on_sale,
+                    'stock_total' => (int) $product->stock_total,
                     'weight' => $product->weight,
                     'category' => $product->category ? [
                         'id' => $product->category->id,

@@ -48,7 +48,7 @@ class CheckoutController extends Controller
         }
 
         $items = $cart->items->map(function ($item) {
-            $unitPrice = (float) $item->product->price + (float) $item->variant->additional_price;
+            $unitPrice = (float) $item->product->final_price + (float) $item->variant->additional_price;
             $subtotal = $unitPrice * $item->quantity;
 
             return [
@@ -60,6 +60,10 @@ class CheckoutController extends Controller
                     'id' => $item->product->id,
                     'name' => $item->product->name,
                     'slug' => $item->product->slug,
+                    'price' => $item->product->price,
+                    'sale_price' => $item->product->sale_price,
+                    'final_price' => $item->product->final_price,
+                    'is_on_sale' => $item->product->is_on_sale,
                     'image_path' => $item->product->primaryImage?->image_path,
                 ],
                 'variant' => [
@@ -199,7 +203,7 @@ class CheckoutController extends Controller
 
             $subtotal = $cart->items->sum(function ($item) use ($lockedVariants) {
                 $variant = $lockedVariants->get($item->product_variant_id);
-                $unitPrice = (float) $variant->product->price + (float) $variant->additional_price;
+                $unitPrice = (float) $variant->product->final_price + (float) $variant->additional_price;
 
                 return $unitPrice * $item->quantity;
             });
@@ -248,7 +252,7 @@ class CheckoutController extends Controller
             foreach ($cart->items as $item) {
                 $variant = $lockedVariants->get($item->product_variant_id);
                 $product = $variant->product;
-                $unitPrice = (float) $product->price + (float) $variant->additional_price;
+                $unitPrice = (float) $product->final_price + (float) $variant->additional_price;
 
                 OrderItem::query()->create([
                     'order_id' => $order->id,

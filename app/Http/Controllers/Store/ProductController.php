@@ -52,7 +52,8 @@ class ProductController extends Controller
                     $categoryQuery->where('slug', $categorySlug);
                 });
             })
-            ->latest()
+            ->orderByRaw('CASE WHEN COALESCE(stock_total, 0) > 0 THEN 0 ELSE 1 END')
+            ->latest('products.created_at')
             ->paginate(12)
             ->withQueryString();
 
@@ -91,10 +92,14 @@ class ProductController extends Controller
                 'category:id,name,slug',
                 'primaryImage:id,product_id,image_path',
             ])
+            ->withSum(['variants as stock_total' => function ($query) {
+                $query->where('is_active', true);
+            }], 'stock')
             ->where('is_active', true)
             ->where('id', '!=', $product->id)
             ->where('category_id', $product->category_id)
-            ->latest()
+            ->orderByRaw('CASE WHEN COALESCE(stock_total, 0) > 0 THEN 0 ELSE 1 END')
+            ->latest('products.created_at')
             ->take(4)
             ->get([
                 'id',
@@ -102,6 +107,7 @@ class ProductController extends Controller
                 'name',
                 'slug',
                 'price',
+                'sale_price',
                 'weight',
             ]);
 

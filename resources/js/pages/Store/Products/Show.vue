@@ -34,6 +34,9 @@ type Product = {
     slug: string;
     description: string | null;
     price: string;
+    sale_price?: string | number | null;
+    final_price?: string | number;
+    is_on_sale?: boolean;
     weight: number;
     category?: Category;
     images: ProductImage[];
@@ -45,6 +48,9 @@ type RelatedProduct = {
     name: string;
     slug: string;
     price: string;
+    sale_price?: string | number | null;
+    final_price?: string | number;
+    is_on_sale?: boolean;
     category?: Category;
     primary_image?: {
         id: number;
@@ -118,12 +124,45 @@ const isSoldOut = computed(() => {
     return totalStock.value <= 0;
 });
 
-const finalPrice = computed(() => {
+const originalPrice = computed(() => {
     const basePrice = Number(props.product.price);
     const additionalPrice = Number(selectedVariant.value?.additional_price ?? 0);
 
     return basePrice + additionalPrice;
 });
+
+const finalPrice = computed(() => {
+    const basePrice = Number(props.product.final_price ?? props.product.price);
+    const additionalPrice = Number(selectedVariant.value?.additional_price ?? 0);
+
+    return basePrice + additionalPrice;
+});
+
+const isProductOnSale = computed(() => {
+    return Boolean(props.product.is_on_sale) && finalPrice.value < originalPrice.value;
+});
+
+const discountPercent = () => {
+    const original = originalPrice.value;
+    const final = finalPrice.value;
+
+    if (!isProductOnSale.value || original <= 0 || final >= original) {
+        return 0;
+    }
+
+    return Math.round(((original - final) / original) * 100);
+};
+
+const relatedDiscountPercent = (item: RelatedProduct) => {
+    const originalPrice = Number(item.price);
+    const salePrice = Number(item.final_price ?? item.sale_price ?? item.price);
+
+    if (!item.is_on_sale || originalPrice <= 0 || salePrice >= originalPrice) {
+        return 0;
+    }
+
+    return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+};
 
 const availableStock = computed(() => {
     return selectedVariant.value?.stock ?? 0;
@@ -262,6 +301,13 @@ const checkSize = () => {
                         >
                             Sold Out
                         </div>
+
+                        <div
+                            v-else-if="isProductOnSale"
+                            class="absolute left-4 top-4 bg-red-600 px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-white"
+                        >
+                            -{{ discountPercent() }}%
+                        </div>
                     </div>
 
                     <div
@@ -297,9 +343,27 @@ const checkSize = () => {
                         {{ product.name }}
                     </h1>
 
-                    <p class="mt-6 text-2xl font-black">
-                        {{ formatPrice(finalPrice) }}
-                    </p>
+                    <div class="mt-6">
+                        <p
+                            v-if="isProductOnSale"
+                            class="text-sm font-bold text-neutral-400 line-through"
+                        >
+                            {{ formatPrice(originalPrice) }}
+                        </p>
+
+                        <div class="mt-1 flex flex-wrap items-center gap-3">
+                            <p class="text-2xl font-black">
+                                {{ formatPrice(finalPrice) }}
+                            </p>
+
+                            <span
+                                v-if="isProductOnSale"
+                                class="bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white"
+                            >
+                                -{{ discountPercent() }}%
+                            </span>
+                        </div>
+                    </div>
 
                     <p
                         v-if="isSoldOut"
@@ -463,12 +527,11 @@ const checkSize = () => {
                         </div>
 
                         <div v-if="activeTab === 'description'" class="py-6">
-                            <p
+                            <div
                                 v-if="product.description"
                                 class="max-w-xl text-sm leading-7 text-neutral-600 md:text-base"
-                            >
-                                {{ product.description }}
-                            </p>
+                                v-html="product.description"
+                            ></div>
 
                             <p
                                 v-else
@@ -633,12 +696,19 @@ const checkSize = () => {
                         :href="`/products/${item.slug}`"
                         class="group"
                     >
-                        <div class="overflow-hidden bg-neutral-100">
+                        <div class="relative overflow-hidden bg-neutral-100">
                             <img
                                 :src="storageUrl(item.primary_image?.image_path)"
                                 :alt="item.name"
                                 class="aspect-[4/5] w-full object-cover transition duration-500 group-hover:scale-105"
                             />
+
+                            <div
+                                v-if="item.is_on_sale"
+                                class="absolute left-3 top-3 bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
+                            >
+                                -{{ relatedDiscountPercent(item) }}%
+                            </div>
                         </div>
 
                         <div class="mt-4">
@@ -653,9 +723,18 @@ const checkSize = () => {
                                 {{ item.name }}
                             </h3>
 
-                            <p class="mt-1 text-sm font-medium text-neutral-600">
-                                {{ formatPrice(item.price) }}
-                            </p>
+                            <div class="mt-1">
+                                <p
+                                    v-if="item.is_on_sale"
+                                    class="text-xs font-medium text-neutral-400 line-through"
+                                >
+                                    {{ formatPrice(item.price) }}
+                                </p>
+
+                                <p class="text-sm font-medium text-neutral-600">
+                                    {{ formatPrice(item.final_price ?? item.price) }}
+                                </p>
+                            </div>
                         </div>
                     </Link>
                 </div>

@@ -18,17 +18,38 @@ class Product extends Model
         'slug',
         'description',
         'price',
+        'sale_price',
         'weight',
         'is_active',
+    ];
+
+    protected $appends = [
+    'final_price',
+    'is_on_sale',
     ];
 
     protected function casts(): array
     {
         return [
             'price' => 'decimal:2',
+            'sale_price' => 'decimal:2',
             'weight' => 'integer',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function getIsOnSaleAttribute(): bool
+    {
+    return $this->sale_price !== null
+        && (float) $this->sale_price > 0
+        && (float) $this->sale_price < (float) $this->price;
+    }
+
+    public function getFinalPriceAttribute(): float
+    {
+        return $this->is_on_sale
+            ? (float) $this->sale_price
+            : (float) $this->price;
     }
 
     public function category(): BelongsTo

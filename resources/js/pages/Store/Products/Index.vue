@@ -14,6 +14,9 @@ type Product = {
     name: string;
     slug: string;
     price: string;
+    sale_price?: string | number | null;
+    final_price?: string | number;
+    is_on_sale?: boolean;
     weight: number;
     stock_total?: number | null;
     category?: Category | null;
@@ -92,6 +95,17 @@ const formatPrice = (price: string | number) => {
         currency: 'IDR',
         minimumFractionDigits: 0,
     }).format(Number(price));
+};
+
+const discountPercent = (product: Product) => {
+    const originalPrice = Number(product.price);
+    const salePrice = Number(product.final_price ?? product.sale_price ?? product.price);
+
+    if (!product.is_on_sale || originalPrice <= 0 || salePrice >= originalPrice) {
+        return 0;
+    }
+
+    return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 };
 
 const applyFilters = () => {
@@ -228,7 +242,7 @@ const resetFilters = () => {
                         :href="`/products/${product.slug}`"
                         class="group"
                     >
-                        <div class="relative overflow-hidden bg-neutral-100">
+                       <div class="relative overflow-hidden bg-neutral-100">
                             <img
                                 :src="storageUrl(product.primary_image?.image_path)"
                                 :alt="product.name"
@@ -241,6 +255,13 @@ const resetFilters = () => {
                                 class="absolute left-3 top-3 bg-neutral-950 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
                             >
                                 Sold Out
+                            </div>
+
+                            <div
+                                v-else-if="product.is_on_sale"
+                                class="absolute left-3 top-3 bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
+                            >
+                                -{{ discountPercent(product) }}%
                             </div>
                         </div>
 
@@ -256,9 +277,18 @@ const resetFilters = () => {
                                 {{ product.name }}
                             </h2>
 
-                            <p class="mt-1 text-xs font-semibold text-neutral-600 sm:text-sm">
-                                {{ formatPrice(product.price) }}
-                            </p>
+                            <div class="mt-1">
+                                <p
+                                    v-if="product.is_on_sale"
+                                    class="text-[11px] font-semibold text-neutral-400 line-through sm:text-xs"
+                                >
+                                    {{ formatPrice(product.price) }}
+                                </p>
+
+                                <p class="text-xs font-semibold text-neutral-600 sm:text-sm">
+                                    {{ formatPrice(product.final_price ?? product.price) }}
+                                </p>
+                            </div>
 
                             <p
                                 v-if="Number(product.stock_total ?? 0) > 0"

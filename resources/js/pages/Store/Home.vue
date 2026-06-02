@@ -15,12 +15,16 @@ type Product = {
     name: string;
     slug: string;
     price: string;
+    sale_price?: string | number | null;
+    final_price?: string | number;
+    is_on_sale?: boolean;
+    stock_total?: number | null;
     weight: number;
     category?: {
         id: number;
         name: string;
         slug: string;
-    };
+    } | null;
     primary_image?: {
         id: number;
         image_path: string;
@@ -45,6 +49,17 @@ const formatPrice = (price: string | number) => {
         minimumFractionDigits: 0,
     }).format(Number(price));
 };
+
+const discountPercent = (product: Product) => {
+    const originalPrice = Number(product.price);
+    const salePrice = Number(product.final_price ?? product.sale_price ?? product.price);
+
+    if (!product.is_on_sale || originalPrice <= 0 || salePrice >= originalPrice) {
+        return 0;
+    }
+
+    return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+};
 </script>
 
 <template>
@@ -53,7 +68,7 @@ const formatPrice = (price: string | number) => {
             <section class="relative">
                 <div
                     v-if="banners.length"
-                   class="relative min-h-[760px] overflow-hidden bg-neutral-950 sm:min-h-[780px] lg:min-h-[720px] xl:min-h-[740px]"
+                    class="relative min-h-[760px] overflow-hidden bg-neutral-950 sm:min-h-[780px] lg:min-h-[720px] xl:min-h-[740px]"
                 >
                     <img
                         :src="storageUrl(banners[0].image_path)"
@@ -153,12 +168,27 @@ const formatPrice = (price: string | number) => {
                         :href="`/products/${product.slug}`"
                         class="group"
                     >
-                        <div class="overflow-hidden bg-neutral-100">
+                        <div class="relative overflow-hidden bg-neutral-100">
                             <img
                                 :src="storageUrl(product.primary_image?.image_path)"
                                 :alt="product.name"
                                 class="aspect-[4/5] w-full object-cover transition duration-500 group-hover:scale-105"
+                                :class="Number(product.stock_total ?? 0) <= 0 ? 'opacity-60 grayscale' : ''"
                             />
+
+                            <div
+                                v-if="Number(product.stock_total ?? 0) <= 0"
+                                class="absolute left-3 top-3 bg-neutral-950 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
+                            >
+                                Sold Out
+                            </div>
+
+                            <div
+                                v-else-if="product.is_on_sale"
+                                class="absolute left-3 top-3 bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
+                            >
+                                -{{ discountPercent(product) }}%
+                            </div>
                         </div>
 
                         <div class="mt-4">
@@ -173,9 +203,18 @@ const formatPrice = (price: string | number) => {
                                 {{ product.name }}
                             </h3>
 
-                            <p class="mt-1 text-sm font-medium text-neutral-600">
-                                {{ formatPrice(product.price) }}
-                            </p>
+                            <div class="mt-1">
+                                <p
+                                    v-if="product.is_on_sale"
+                                    class="text-xs font-medium text-neutral-400 line-through"
+                                >
+                                    {{ formatPrice(product.price) }}
+                                </p>
+
+                                <p class="text-sm font-medium text-neutral-600">
+                                    {{ formatPrice(product.final_price ?? product.price) }}
+                                </p>
+                            </div>
                         </div>
                     </Link>
                 </div>

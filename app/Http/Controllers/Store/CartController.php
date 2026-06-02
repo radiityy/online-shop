@@ -30,7 +30,7 @@ class CartController extends Controller
         ]);
 
         $items = $cart->items->map(function (CartItem $item) {
-            $unitPrice = (float) $item->product->price + (float) $item->variant->additional_price;
+            $unitPrice = (float) $item->product->final_price + (float) $item->variant->additional_price;
             $subtotal = $unitPrice * $item->quantity;
 
             return [
@@ -43,6 +43,9 @@ class CartController extends Controller
                     'name' => $item->product->name,
                     'slug' => $item->product->slug,
                     'price' => $item->product->price,
+                    'sale_price' => $item->product->sale_price,
+                    'final_price' => $item->product->final_price,
+                    'is_on_sale' => $item->product->is_on_sale,
                     'image_path' => $item->product->primaryImage?->image_path,
                 ],
                 'variant' => [
@@ -77,6 +80,9 @@ class CartController extends Controller
                     'name' => $product->name,
                     'slug' => $product->slug,
                     'price' => $product->price,
+                    'sale_price' => $product->sale_price,
+                    'final_price' => $product->final_price,
+                    'is_on_sale' => $product->is_on_sale,
                     'sold_count' => (int) $product->sold_count,
                     'category' => $product->category ? [
                         'id' => $product->category->id,
