@@ -146,7 +146,7 @@ const paymentMessage = computed(() => {
     }
 
     if (props.order.payment_status === 'failed') {
-        return 'We could not verify your payment proof. Please upload a clearer proof or contact us for help.';
+        return 'We could not verify the payment for this order. This order will not be processed. You can place a new order anytime.';
     }
 
     if (props.order.payment_status === 'expired') {
@@ -168,7 +168,7 @@ const failedStatus = computed(() => {
     if (props.order.payment_status === 'failed') {
         return {
             title: 'Payment Failed',
-            description: 'We could not verify your payment proof. Please upload a clearer proof or contact us for help.',
+            description: 'We could not verify the payment for this order. This order will not be processed. You can place a new order anytime.',
         };
     }
 
@@ -282,7 +282,7 @@ const orderTimeline = computed<TimelineStep[]>(() => {
 });
 
 const canUploadProof = computed(() => {
-    return !['paid', 'refunded', 'expired'].includes(props.order.payment_status)
+    return !['paid', 'failed', 'refunded', 'expired'].includes(props.order.payment_status)
         && props.order.order_status !== 'cancelled'
         && props.order.shipping_status !== 'returned';
 });

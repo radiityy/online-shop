@@ -25,13 +25,25 @@ class PaymentController extends Controller
 
         if (! $order->payment) {
             return back()->withErrors([
-                'proof_image' => 'Data pembayaran tidak ditemukan.',
+                'proof_image' => 'Payment data was not found for this order.',
             ]);
         }
 
-        if ($order->payment_status === 'paid') {
+        if (in_array($order->payment_status, ['paid', 'failed', 'expired', 'refunded'], true)) {
             return back()->withErrors([
-                'proof_image' => 'Pembayaran untuk order ini sudah dikonfirmasi.',
+                'proof_image' => 'Payment proof upload is no longer available for this order.',
+            ]);
+        }
+
+        if (in_array($order->order_status, ['cancelled'], true)) {
+            return back()->withErrors([
+                'proof_image' => 'This order has been cancelled and cannot receive payment proof.',
+            ]);
+        }
+
+        if (in_array($order->shipping_status, ['returned'], true)) {
+            return back()->withErrors([
+                'proof_image' => 'This order has been returned and cannot receive payment proof.',
             ]);
         }
 
@@ -50,6 +62,6 @@ class PaymentController extends Controller
             'payment_status' => 'waiting_confirmation',
         ]);
 
-        return back()->with('success', 'Bukti pembayaran berhasil diupload. Menunggu konfirmasi admin.');
+        return back()->with('success', 'Payment proof uploaded. We are checking your payment now.');
     }
 }
