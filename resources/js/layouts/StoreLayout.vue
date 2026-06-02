@@ -854,17 +854,17 @@ onBeforeUnmount(() => {
                             My Addresses
                         </Link>
 
-                        <a href="#" class="block hover:text-white">
+                        <Link href="/faq" class="block hover:text-white">
                             FAQ
-                        </a>
+                        </Link>
 
-                        <a href="#" class="block hover:text-white">
+                        <Link href="/shipping" class="block hover:text-white">
                             Shipping
-                        </a>
+                        </Link>
 
-                        <a href="#" class="block hover:text-white">
+                        <Link href="/returns" class="block hover:text-white">
                             Returns
-                        </a>
+                        </Link>
                     </div>
                 </div>
 

@@ -55,5 +55,17 @@ Route::delete('/account/addresses/{address}', [AddressController::class, 'destro
 Route::patch('/account/addresses/{address}/default', [AddressController::class, 'setDefault'])
     ->name('account.addresses.default');
 });
+
+Route::get('/faq', function () {
+    return Inertia::render('Store/Pages/Faq');
+})->name('faq');
+
+Route::get('/shipping', function () {
+    return Inertia::render('Store/Pages/Shipping');
+})->name('shipping');
+
+Route::get('/returns', function () {
+    return Inertia::render('Store/Pages/Returns');
+})->name('returns');
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
