@@ -42,6 +42,7 @@ const isMobileMenuOpen = ref(false);
 const isScrolled = ref(false);
 const isSearchOpen = ref(false);
 const searchKeyword = ref('');
+const isPageLoading = ref(false);
 
 const menuGroups: MenuGroup[] = [
     {
@@ -178,6 +179,13 @@ onMounted(() => {
 
     window.addEventListener('keydown', handleKeydown);
 });
+    router.on('start', () => {
+        isPageLoading.value = true;
+    });
+
+    router.on('finish', () => {
+        isPageLoading.value = false;
+    });
 
 onBeforeUnmount(() => {
     window.removeEventListener('scroll', handleScroll);
@@ -187,6 +195,12 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="min-h-screen bg-white text-neutral-950">
+        <div
+            v-if="isPageLoading"
+            class="fixed left-0 top-0 z-[200] h-1 w-full overflow-hidden bg-neutral-200"
+        >
+            <div class="h-full w-1/2 animate-[neverending-loading_1s_ease-in-out_infinite] bg-neutral-950"></div>
+        </div>
         <div
             v-if="flashSuccess"
             class="fixed right-5 top-24 z-[100] max-w-sm border border-green-200 bg-green-50 px-5 py-4 text-sm font-bold text-green-700 shadow-xl"
@@ -818,6 +832,15 @@ onBeforeUnmount(() => {
 
     100% {
         transform: translateX(-50%);
+    }
+}
+@keyframes neverending-loading {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(220%);
     }
 }
 </style>
