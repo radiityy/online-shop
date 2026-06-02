@@ -6,6 +6,7 @@ type PageProps = {
     auth?: {
         user?: unknown;
     };
+    cart_count?: number;
     flash?: {
         success?: string | null;
         error?: string | null;
@@ -33,6 +34,7 @@ const page = usePage();
 const isLoggedIn = computed(() => Boolean((page.props as PageProps).auth?.user));
 const flashSuccess = computed(() => (page.props as PageProps).flash?.success);
 const flashError = computed(() => (page.props as PageProps).flash?.error);
+const cartCount = computed(() => Number((page.props as PageProps).cart_count ?? 0));
 
 const isShopOpen = ref(false);
 const isAccountOpen = ref(false);
@@ -271,7 +273,7 @@ onBeforeUnmount(() => {
                 <Link
                     href="/cart"
                     aria-label="Cart"
-                    class="justify-self-end"
+                    class="relative inline-flex items-center justify-center justify-self-end"
                     @click="closeMenus"
                 >
                     <svg
@@ -288,6 +290,14 @@ onBeforeUnmount(() => {
                             d="M3.75 5.25h2.1l1.8 10.05a2.25 2.25 0 0 0 2.22 1.86h6.65a2.25 2.25 0 0 0 2.2-1.78l1.03-5.13H7.2M9.75 20.25h.01M17.25 20.25h.01"
                         />
                     </svg>
+
+                    <span
+                        v-if="cartCount > 0"
+                        class="absolute -right-2 -top-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black leading-none"
+                        :class="showTransparentHeader ? 'bg-white text-neutral-950' : 'bg-neutral-950 text-white'"
+                    >
+                        {{ cartCount > 99 ? '99+' : cartCount }}
+                    </span>
                 </Link>
             </div>
 
@@ -476,7 +486,7 @@ onBeforeUnmount(() => {
                     <Link
                         href="/cart"
                         aria-label="Cart"
-                        class="transition hover:opacity-60"
+                        class="relative transition hover:opacity-60"
                         @click="closeMenus"
                     >
                         <svg
@@ -493,6 +503,12 @@ onBeforeUnmount(() => {
                                 d="M3.75 5.25h2.1l1.8 10.05a2.25 2.25 0 0 0 2.22 1.86h6.65a2.25 2.25 0 0 0 2.2-1.78l1.03-5.13H7.2M9.75 20.25h.01M17.25 20.25h.01"
                             />
                         </svg>
+                        <span
+                            v-if="cartCount > 0"
+                            class="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-neutral-950 px-1 text-[10px] font-black leading-none text-white"
+                        >
+                            {{ cartCount > 99 ? '99+' : cartCount }}
+                        </span>
                     </Link>
                 </div>
             </div>
