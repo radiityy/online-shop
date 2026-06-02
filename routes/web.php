@@ -67,5 +67,8 @@ Route::get('/shipping', function () {
 Route::get('/returns', function () {
     return Inertia::render('Store/Pages/Returns');
 })->name('returns');
+Route::get('/about', function () {
+    return Inertia::render('Store/Pages/About');
+})->name('about');
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';

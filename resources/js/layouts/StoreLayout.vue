@@ -806,16 +806,61 @@ onBeforeUnmount(() => {
 
         <footer class="border-t border-neutral-200 bg-neutral-950 text-white">
             <div class="mx-auto grid max-w-7xl gap-10 px-6 py-14 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
-                <div>
-                    <h2 class="text-2xl font-black uppercase tracking-[0.22em]">
-                        NEVERENDING
-                    </h2>
+                    <div>
+                        <h2 class="text-2xl font-black uppercase tracking-[0.22em]">
+                            NEVERENDING
+                        </h2>
 
-                    <p class="mt-5 max-w-sm text-sm leading-7 text-white/60">
-                        Daily wear for endless rotation. Clean pieces built for everyday movement.
-                    </p>
-                </div>
+                        <p class="mt-5 max-w-sm text-sm leading-7 text-white/60">
+                            Daily wear for endless rotation. Clean pieces built for everyday movement.
+                        </p>
 
+                        <div class="mt-7 flex flex-wrap items-center gap-6">
+                            <a
+                                href="https://www.instagram.com/adyneee/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="Instagram"
+                                class="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-white/60 transition hover:text-white"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                >
+                                    <rect x="3" y="3" width="18" height="18" rx="5" />
+                                    <circle cx="12" cy="12" r="4" />
+                                    <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+                                </svg>
+
+                                Instagram
+                            </a>
+
+                            <a
+                                href="https://www.tiktok.com/@radiityyy"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="TikTok"
+                                class="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-white/60 transition hover:text-white"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-4 w-4"
+                                    viewBox="0 0 24 24"
+                                    fill="currentColor"
+                                >
+                                    <path
+                                        d="M16.6 3c.3 2.2 1.6 3.8 3.9 4.1v3.3c-1.4 0-2.7-.4-3.9-1.2v5.9c0 3.5-2.4 5.9-5.8 5.9A5.6 5.6 0 0 1 5 15.4c0-3.4 2.7-5.9 6.3-5.6v3.4c-1.6-.3-2.8.6-2.8 2.1 0 1.3 1 2.2 2.3 2.2 1.4 0 2.3-.9 2.3-2.7V3h3.5Z"
+                                    />
+                                </svg>
+
+                                TikTok
+                            </a>
+                        </div>
+                    </div>
                 <div>
                     <h3 class="text-sm font-black uppercase tracking-[0.25em]">
                         Shop
@@ -846,6 +891,9 @@ onBeforeUnmount(() => {
                     </h3>
 
                     <div class="mt-5 space-y-3 text-sm text-white/60">
+                        <Link href="/about" class="block hover:text-white">
+                            About Us
+                        </Link>
                         <Link href="/orders" class="block hover:text-white">
                             Order Status
                         </Link>
