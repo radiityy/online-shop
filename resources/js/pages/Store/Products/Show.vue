@@ -21,7 +21,6 @@ type ProductVariant = {
     id: number;
     product_id: number;
     size: string | null;
-    color: string | null;
     sku: string | null;
     stock: number;
     additional_price: string;
@@ -87,7 +86,9 @@ const sortedVariants = computed(() => {
     });
 });
 
-const selectedVariantId = ref<number | null>(sortedVariants.value[0]?.id ?? null);
+const firstAvailableVariant = sortedVariants.value.find((variant) => variant.stock > 0) ?? null;
+
+const selectedVariantId = ref<number | null>(firstAvailableVariant?.id ?? null);
 const quantity = ref(1);
 const activeTab = ref<'description' | 'sizeGuide'>('description');
 
@@ -106,7 +107,15 @@ const form = useForm<{
 });
 
 const selectedVariant = computed(() => {
-    return props.product.variants.find((variant) => variant.id === selectedVariantId.value) ?? null;
+    return sortedVariants.value.find((variant) => variant.id === selectedVariantId.value) ?? null;
+});
+
+const totalStock = computed(() => {
+    return sortedVariants.value.reduce((total, variant) => total + Number(variant.stock ?? 0), 0);
+});
+
+const isSoldOut = computed(() => {
+    return totalStock.value <= 0;
 });
 
 const finalPrice = computed(() => {
@@ -126,6 +135,7 @@ const canAddToBag = computed(() => {
 
 const availableSizes = computed(() => {
     return sortedVariants.value
+        .filter((variant) => variant.stock > 0)
         .map((variant) => variant.size)
         .filter(Boolean);
 });
@@ -165,6 +175,10 @@ const selectVariant = (variant: ProductVariant) => {
 };
 
 const increaseQuantity = () => {
+    if (!selectedVariant.value) {
+        return;
+    }
+
     if (quantity.value < availableStock.value) {
         quantity.value++;
     }
@@ -234,12 +248,20 @@ const checkSize = () => {
 
             <section class="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] xl:gap-16">
                 <div>
-                    <div class="overflow-hidden bg-neutral-100">
+                    <div class="relative overflow-hidden bg-neutral-100">
                         <img
                             :src="storageUrl(selectedImage?.image_path)"
                             :alt="product.name"
                             class="aspect-[4/5] w-full object-cover"
+                            :class="isSoldOut ? 'opacity-60 grayscale' : ''"
                         />
+
+                        <div
+                            v-if="isSoldOut"
+                            class="absolute left-4 top-4 bg-neutral-950 px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-white"
+                        >
+                            Sold Out
+                        </div>
                     </div>
 
                     <div
@@ -279,6 +301,20 @@ const checkSize = () => {
                         {{ formatPrice(finalPrice) }}
                     </p>
 
+                    <p
+                        v-if="isSoldOut"
+                        class="mt-4 inline-flex bg-red-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-red-600"
+                    >
+                        Out of stock
+                    </p>
+
+                    <p
+                        v-else
+                        class="mt-4 inline-flex bg-neutral-100 px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-neutral-500"
+                    >
+                        {{ totalStock }} total stock available
+                    </p>
+
                     <div class="mt-8">
                         <div class="mb-4 flex items-center justify-between">
                             <p class="text-sm font-black uppercase tracking-[0.22em]">
@@ -294,7 +330,7 @@ const checkSize = () => {
                         </div>
 
                         <div
-                            v-if="product.variants.length"
+                            v-if="sortedVariants.length"
                             class="grid grid-cols-4 gap-3 sm:grid-cols-5"
                         >
                             <button
@@ -302,16 +338,20 @@ const checkSize = () => {
                                 :key="variant.id"
                                 type="button"
                                 :disabled="variant.stock <= 0"
-                                class="border px-4 py-4 text-sm font-black uppercase transition"
-                                :class="[
-                                    selectedVariantId === variant.id
-                                        ? 'border-neutral-950 bg-neutral-950 text-white'
-                                        : 'border-neutral-300 bg-white text-neutral-950 hover:border-neutral-950',
-                                    variant.stock <= 0 ? 'cursor-not-allowed opacity-35' : '',
-                                ]"
+                                class="relative border px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition disabled:cursor-not-allowed disabled:opacity-40"
+                                :class="selectedVariantId === variant.id
+                                    ? 'border-neutral-950 bg-neutral-950 text-white'
+                                    : 'border-neutral-300 bg-white text-neutral-950 hover:border-neutral-950'"
                                 @click="selectVariant(variant)"
                             >
                                 {{ sizeLabel(variant) }}
+
+                                <span
+                                    v-if="variant.stock <= 0"
+                                    class="ml-2 text-[9px] font-black uppercase tracking-[0.12em]"
+                                >
+                                    Sold
+                                </span>
                             </button>
                         </div>
 
@@ -339,7 +379,7 @@ const checkSize = () => {
                             <button
                                 type="button"
                                 class="px-5 py-3 text-lg disabled:cursor-not-allowed disabled:opacity-40"
-                                :disabled="quantity <= 1"
+                                :disabled="quantity <= 1 || isSoldOut"
                                 @click="decreaseQuantity"
                             >
                                 -
@@ -352,7 +392,7 @@ const checkSize = () => {
                             <button
                                 type="button"
                                 class="px-5 py-3 text-lg disabled:cursor-not-allowed disabled:opacity-40"
-                                :disabled="quantity >= availableStock"
+                                :disabled="quantity >= availableStock || isSoldOut"
                                 @click="increaseQuantity"
                             >
                                 +
@@ -374,7 +414,7 @@ const checkSize = () => {
                             class="w-full bg-neutral-950 px-8 py-4 text-xs font-black uppercase tracking-[0.22em] text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
                             @click="submitBag(false)"
                         >
-                            {{ form.processing && !form.buy_now ? 'Adding...' : 'Add To Bag' }}
+                            {{ form.processing && !form.buy_now ? 'Adding...' : isSoldOut ? 'Sold Out' : 'Add To Bag' }}
                         </button>
 
                         <button
@@ -383,15 +423,22 @@ const checkSize = () => {
                             class="w-full border border-neutral-950 bg-white px-8 py-4 text-xs font-black uppercase tracking-[0.22em] text-neutral-950 transition hover:bg-neutral-950 hover:text-white disabled:cursor-not-allowed disabled:border-neutral-300 disabled:text-neutral-300"
                             @click="submitBag(true)"
                         >
-                            {{ form.processing && form.buy_now ? 'Processing...' : 'Buy Now' }}
+                            {{ form.processing && form.buy_now ? 'Processing...' : isSoldOut ? 'Sold Out' : 'Buy Now' }}
                         </button>
                     </div>
 
                     <p
-                        v-if="!selectedVariant"
+                        v-if="!selectedVariant && !isSoldOut"
                         class="mt-4 text-center text-xs text-neutral-500"
                     >
                         Please select an available size before adding this product to bag.
+                    </p>
+
+                    <p
+                        v-if="isSoldOut"
+                        class="mt-4 text-center text-xs font-bold uppercase tracking-[0.18em] text-red-500"
+                    >
+                        This product is currently sold out.
                     </p>
 
                     <div class="mt-8 border-t border-neutral-200 pt-6">
@@ -506,9 +553,15 @@ const checkSize = () => {
                                 <table class="w-full text-left text-sm">
                                     <thead class="bg-neutral-950 text-white">
                                         <tr>
-                                            <th class="px-4 py-3 text-xs font-black uppercase tracking-[0.18em]">Size</th>
-                                            <th class="px-4 py-3 text-xs font-black uppercase tracking-[0.18em]">Weight</th>
-                                            <th class="px-4 py-3 text-xs font-black uppercase tracking-[0.18em]">Height</th>
+                                            <th class="px-4 py-3 text-xs font-black uppercase tracking-[0.18em]">
+                                                Size
+                                            </th>
+                                            <th class="px-4 py-3 text-xs font-black uppercase tracking-[0.18em]">
+                                                Weight
+                                            </th>
+                                            <th class="px-4 py-3 text-xs font-black uppercase tracking-[0.18em]">
+                                                Height
+                                            </th>
                                         </tr>
                                     </thead>
 

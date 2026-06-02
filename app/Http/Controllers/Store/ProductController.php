@@ -30,6 +30,9 @@ class ProductController extends Controller
                 'category:id,name,slug',
                 'primaryImage:id,product_id,image_path',
             ])
+            ->withSum(['variants as stock_total' => function ($query) {
+                $query->where('is_active', true);
+            }], 'stock')
             ->where('is_active', true)
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($searchQuery) use ($search) {

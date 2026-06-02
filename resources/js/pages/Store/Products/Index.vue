@@ -15,6 +15,7 @@ type Product = {
     slug: string;
     price: string;
     weight: number;
+    stock_total?: number | null;
     category?: Category | null;
     primary_image?: {
         id: number;
@@ -227,12 +228,20 @@ const resetFilters = () => {
                         :href="`/products/${product.slug}`"
                         class="group"
                     >
-                        <div class="overflow-hidden bg-neutral-100">
+                        <div class="relative overflow-hidden bg-neutral-100">
                             <img
                                 :src="storageUrl(product.primary_image?.image_path)"
                                 :alt="product.name"
                                 class="aspect-[4/5] w-full object-cover transition duration-500 group-hover:scale-105"
+                                :class="Number(product.stock_total ?? 0) <= 0 ? 'opacity-60 grayscale' : ''"
                             />
+
+                            <div
+                                v-if="Number(product.stock_total ?? 0) <= 0"
+                                class="absolute left-3 top-3 bg-neutral-950 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
+                            >
+                                Sold Out
+                            </div>
                         </div>
 
                         <div class="mt-4">
@@ -249,6 +258,20 @@ const resetFilters = () => {
 
                             <p class="mt-1 text-sm font-medium text-neutral-600">
                                 {{ formatPrice(product.price) }}
+                            </p>
+
+                            <p
+                                v-if="Number(product.stock_total ?? 0) > 0"
+                                class="mt-2 text-[11px] font-black uppercase tracking-[0.18em] text-neutral-400"
+                            >
+                                {{ product.stock_total }} in stock
+                            </p>
+
+                            <p
+                                v-else
+                                class="mt-2 text-[11px] font-black uppercase tracking-[0.18em] text-red-500"
+                            >
+                                Out of stock
                             </p>
                         </div>
                     </Link>
