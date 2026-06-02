@@ -6,36 +6,23 @@ use App\Http\Controllers\Store\CartController;
 use App\Http\Controllers\Store\CheckoutController;
 use App\Http\Controllers\Store\HomeController;
 use App\Http\Controllers\Store\OrderController;
+use App\Http\Controllers\Store\PageController;
 use App\Http\Controllers\Store\PaymentController;
 use App\Http\Controllers\Store\ProductController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
 Route::get('/products', [ProductController::class, 'index'])->name('products.index');
 Route::get('/products/{slug}', [ProductController::class, 'show'])->name('products.show');
 
-Route::get('/faq', function () {
-    return Inertia::render('Store/Pages/Faq');
-})->name('faq');
-
-Route::get('/shipping', function () {
-    return Inertia::render('Store/Pages/Shipping');
-})->name('shipping');
-
-Route::get('/returns', function () {
-    return Inertia::render('Store/Pages/Returns');
-})->name('returns');
-
-Route::get('/about', function () {
-    return Inertia::render('Store/Pages/About');
-})->name('about');
+Route::get('/faq', [PageController::class, 'faq'])->name('faq');
+Route::get('/shipping', [PageController::class, 'shipping'])->name('shipping');
+Route::get('/returns', [PageController::class, 'returns'])->name('returns');
+Route::get('/about', [PageController::class, 'about'])->name('about');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');
-    })->name('dashboard');
+    Route::get('/dashboard', [PageController::class, 'dashboard'])->name('dashboard');
 });
 
 Route::middleware(['auth'])->group(function () {
