@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 type PageProps = {
     auth?: {
@@ -38,6 +38,8 @@ const showFlashSuccess = ref(false);
 const showFlashError = ref(false);
 
 let flashTimer: number | undefined;
+let removeRouterStartListener: (() => void) | undefined;
+let removeRouterFinishListener: (() => void) | undefined;
 
 const resetFlashTimer = () => {
     if (flashTimer) {
@@ -123,7 +125,7 @@ const toggleMobileMenu = () => {
     isAccountOpen.value = false;
 };
 
-const openSearch = () => {
+const openSearch = async () => {
     isShopOpen.value = false;
     isAccountOpen.value = false;
     isMobileMenuOpen.value = false;
@@ -134,9 +136,9 @@ const openSearch = () => {
     searchKeyword.value = params.get('search') ?? '';
     isSearchOpen.value = true;
 
-    setTimeout(() => {
-        document.getElementById('store-search-input')?.focus();
-    }, 50);
+    await nextTick();
+
+    document.getElementById('store-search-input')?.focus();
 };
 
 const closeSearch = () => {
@@ -166,7 +168,7 @@ const quickSearch = (keyword: string) => {
 };
 
 const handleKeydown = (event: KeyboardEvent) => {
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' && isSearchOpen.value) {
         closeSearch();
     }
 };
@@ -215,22 +217,26 @@ onMounted(() => {
     });
 
     window.addEventListener('keydown', handleKeydown);
-});
-    router.on('start', () => {
+
+    removeRouterStartListener = router.on('start', () => {
         isPageLoading.value = true;
     });
 
-    router.on('finish', () => {
+    removeRouterFinishListener = router.on('finish', () => {
         isPageLoading.value = false;
     });
+});
 
 onBeforeUnmount(() => {
     window.removeEventListener('scroll', handleScroll);
     window.removeEventListener('keydown', handleKeydown);
 
+    removeRouterStartListener?.();
+    removeRouterFinishListener?.();
+
     if (flashTimer) {
-    window.clearTimeout(flashTimer);
-}
+        window.clearTimeout(flashTimer);
+    }
 });
 </script>
 
@@ -757,7 +763,7 @@ onBeforeUnmount(() => {
                         v-model="searchKeyword"
                         type="text"
                         placeholder="Search tees, hoodies, bags..."
-                        class="min-h-14 flex-1 border border-neutral-300 bg-white px-5 text-base font-bold outline-none transition focus:border-neutral-950"
+                        class="min-h-14 flex-1 border border-neutral-300 bg-white px-5 text-base font-bold outline-none transition duration-200 focus:border-neutral-950 focus:ring-1 focus:ring-neutral-950"
                     />
 
                     <button

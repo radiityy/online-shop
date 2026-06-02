@@ -208,6 +208,8 @@ const orderTimeline = computed<TimelineStep[]>(() => {
     const paymentConfirmed = props.order.payment_status === 'paid';
 
     if (failedStatus.value) {
+        const proofStepDone = paymentUploaded || ['failed', 'refunded'].includes(props.order.payment_status);
+
         return [
             {
                 title: 'Order Created',
@@ -217,8 +219,10 @@ const orderTimeline = computed<TimelineStep[]>(() => {
             },
             {
                 title: 'Payment Proof',
-                description: paymentUploaded ? 'Payment proof has been uploaded.' : 'Payment proof was not completed.',
-                done: paymentUploaded,
+                description: proofStepDone
+                    ? 'Payment proof has been submitted.'
+                    : 'Payment proof was not completed.',
+                done: proofStepDone,
                 failed: false,
             },
             {
