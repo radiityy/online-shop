@@ -296,16 +296,18 @@ onBeforeUnmount(() => {
             v-show="showAnnouncement"
             class="fixed left-0 right-0 top-0 z-[60] overflow-hidden bg-neutral-950 py-1.5 text-white transition duration-300"
         >
-            <div class="marquee-track text-[10px] font-bold uppercase tracking-[0.25em]">
-                <span class="marquee-item">
-                    NEVERENDING DAILY WEAR — NEW DROP AVAILABLE — BUILT FOR ENDLESS ROTATION —
-                    NEVERENDING DAILY WEAR — NEW DROP AVAILABLE — BUILT FOR ENDLESS ROTATION —
-                </span>
+            <div class="overflow-hidden bg-neutral-950 py-2 text-white">
+                <div class="marquee-track text-[10px] font-bold uppercase tracking-[0.25em]">
+                    <span class="marquee-item">
+                        NEVERENDING DAILY WEAR — NEW DROP AVAILABLE — BUILT FOR ENDLESS ROTATION —
+                        NEVERENDING DAILY WEAR — NEW DROP AVAILABLE — BUILT FOR ENDLESS ROTATION —
+                    </span>
 
-                <span class="marquee-item">
-                    NEVERENDING DAILY WEAR — NEW DROP AVAILABLE — BUILT FOR ENDLESS ROTATION —
-                    NEVERENDING DAILY WEAR — NEW DROP AVAILABLE — BUILT FOR ENDLESS ROTATION —
-                </span>
+                    <span class="marquee-item">
+                        NEVERENDING DAILY WEAR — NEW DROP AVAILABLE — BUILT FOR ENDLESS ROTATION —
+                        NEVERENDING DAILY WEAR — NEW DROP AVAILABLE — BUILT FOR ENDLESS ROTATION —
+                    </span>
+                </div>
             </div>
         </div>
 
@@ -941,13 +943,14 @@ onBeforeUnmount(() => {
 .marquee-track {
     display: flex;
     width: max-content;
-    animation: neverending-marquee 24s linear infinite;
+    white-space: nowrap;
+    animation: neverending-marquee 22s linear infinite;
 }
 
 .marquee-item {
+    display: inline-flex;
     flex-shrink: 0;
-    padding-right: 3rem;
-    white-space: nowrap;
+    padding-right: 1rem;
 }
 
 @keyframes neverending-marquee {

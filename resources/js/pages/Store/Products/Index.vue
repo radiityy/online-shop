@@ -172,18 +172,18 @@ const resetFilters = () => {
             </section>
 
             <section class="mb-12 border-y border-neutral-200 py-6">
-                <div class="grid gap-4 md:grid-cols-[1fr_260px_auto_auto]">
+                <div class="grid gap-3 md:grid-cols-[1fr_260px_auto_auto] md:gap-4">
                     <input
                         v-model="search"
                         type="text"
                         placeholder="Search product..."
-                        class="rounded-none border border-neutral-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-950"
+                        class="rounded-none border border-neutral-300 bg-white px-4 py-3 text-sm outline-none transition duration-200 focus:border-neutral-950 focus:ring-1 focus:ring-neutral-950"
                         @keyup.enter="applyFilters"
                     />
 
                     <select
                         v-model="selectedCategory"
-                        class="rounded-none border border-neutral-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-950"
+                        class="rounded-none border border-neutral-300 bg-white px-4 py-3 text-sm outline-none transition duration-200 focus:border-neutral-950 focus:ring-1 focus:ring-neutral-950"
                         @change="applyFilters"
                     >
                         <option value="">
@@ -201,7 +201,7 @@ const resetFilters = () => {
 
                     <button
                         type="button"
-                        class="bg-neutral-950 px-7 py-3 text-xs font-black uppercase tracking-[0.2em] text-white transition hover:bg-neutral-800"
+                        class="bg-neutral-950 px-7 py-3 text-xs font-black uppercase tracking-[0.18em] text-white transition duration-200 hover:bg-neutral-800"
                         @click="applyFilters"
                     >
                         Search
@@ -209,7 +209,7 @@ const resetFilters = () => {
 
                     <button
                         type="button"
-                        class="border border-neutral-300 bg-white px-7 py-3 text-xs font-black uppercase tracking-[0.2em] transition hover:bg-neutral-100"
+                        class="border border-neutral-300 bg-white px-7 py-3 text-xs font-black uppercase tracking-[0.18em] transition duration-200 hover:border-neutral-950 hover:bg-neutral-50"
                         @click="resetFilters"
                     >
                         Reset
@@ -220,7 +220,7 @@ const resetFilters = () => {
             <section>
                 <div
                     v-if="products.data.length"
-                    class="grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-4"
+                    class="grid grid-cols-2 gap-x-3 gap-y-9 sm:gap-x-6 sm:gap-y-12 lg:grid-cols-4"
                 >
                     <Link
                         v-for="product in products.data"
@@ -247,29 +247,29 @@ const resetFilters = () => {
                         <div class="mt-4">
                             <p
                                 v-if="product.category"
-                                class="text-[11px] font-black uppercase tracking-[0.22em] text-neutral-500"
+                                class="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-500 sm:text-[11px]"
                             >
                                 {{ product.category.name }}
                             </p>
 
-                            <h2 class="mt-2 text-sm font-black uppercase tracking-tight md:text-base">
+                            <h2 class="mt-2 line-clamp-2 min-h-[2.5rem] text-xs font-black uppercase leading-5 tracking-tight sm:text-sm md:text-base">
                                 {{ product.name }}
                             </h2>
 
-                            <p class="mt-1 text-sm font-medium text-neutral-600">
+                            <p class="mt-1 text-xs font-semibold text-neutral-600 sm:text-sm">
                                 {{ formatPrice(product.price) }}
                             </p>
 
                             <p
                                 v-if="Number(product.stock_total ?? 0) > 0"
-                                class="mt-2 text-[11px] font-black uppercase tracking-[0.18em] text-neutral-400"
+                                class="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-neutral-400 sm:text-[11px]"
                             >
                                 {{ product.stock_total }} in stock
                             </p>
 
                             <p
                                 v-else
-                                class="mt-2 text-[11px] font-black uppercase tracking-[0.18em] text-red-500"
+                                class="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-red-500 sm:text-[11px]"
                             >
                                 Out of stock
                             </p>
