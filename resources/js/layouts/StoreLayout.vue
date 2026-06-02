@@ -12,6 +12,16 @@ type PageProps = {
     };
 };
 
+type MenuItem = {
+    label: string;
+    href: string;
+};
+
+type MenuGroup = {
+    title: string;
+    items: MenuItem[];
+};
+
 const props = withDefaults(defineProps<{
     transparentHeader?: boolean;
 }>(), {
@@ -28,6 +38,36 @@ const isShopOpen = ref(false);
 const isAccountOpen = ref(false);
 const isMobileMenuOpen = ref(false);
 const isScrolled = ref(false);
+
+const menuGroups: MenuGroup[] = [
+    {
+        title: 'Shop',
+        items: [
+            { label: 'New Arrivals', href: '/products' },
+            { label: 'All Products', href: '/products' },
+            { label: 'Tees', href: '/products?category=tees' },
+            { label: 'Hoodies', href: '/products?category=hoodies' },
+        ],
+    },
+    {
+        title: 'Clothing',
+        items: [
+            { label: 'Longsleeve', href: '/products?category=longsleeve' },
+            { label: 'Shirts', href: '/products?category=shirts' },
+            { label: 'Outerwear', href: '/products?category=outerwear' },
+            { label: 'Pants', href: '/products?category=pants' },
+        ],
+    },
+    {
+        title: 'Accessories',
+        items: [
+            { label: 'Headwear', href: '/products?category=headwear' },
+            { label: 'Bags', href: '/products?category=bags' },
+            { label: 'Socks', href: '/products?category=socks' },
+            { label: 'Jewelry', href: '/products?category=jewelry' },
+        ],
+    },
+];
 
 const closeMenus = () => {
     isShopOpen.value = false;
@@ -156,7 +196,12 @@ onBeforeUnmount(() => {
                     NEVERENDING
                 </Link>
 
-                <Link href="/cart" aria-label="Cart" class="justify-self-end" @click="closeMenus">
+                <Link
+                    href="/cart"
+                    aria-label="Cart"
+                    class="justify-self-end"
+                    @click="closeMenus"
+                >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
                         class="h-7 w-7"
@@ -187,78 +232,29 @@ onBeforeUnmount(() => {
 
                         <div
                             v-if="isShopOpen"
-                            class="absolute left-0 top-full z-50 mt-5 w-[680px] border border-neutral-200 bg-white p-7 text-neutral-950 shadow-2xl"
+                            class="absolute left-0 top-full z-50 pt-5"
                         >
-                            <div class="grid grid-cols-3 gap-8">
-                                <div>
-                                    <p class="mb-4 text-[11px] font-black uppercase tracking-[0.22em] text-neutral-400">
-                                        Shop
-                                    </p>
+                            <div class="w-[760px] border border-neutral-200 bg-white p-8 text-neutral-950 shadow-2xl">
+                                <div class="grid grid-cols-3 gap-10">
+                                    <div
+                                        v-for="group in menuGroups"
+                                        :key="group.title"
+                                    >
+                                        <p class="mb-5 text-[11px] font-black uppercase tracking-[0.24em] text-neutral-400">
+                                            {{ group.title }}
+                                        </p>
 
-                                    <div class="space-y-3 text-sm font-semibold normal-case tracking-normal">
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            New Arrivals
-                                        </Link>
-
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            All Products
-                                        </Link>
-
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            Tees
-                                        </Link>
-
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            Hoodies
-                                        </Link>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <p class="mb-4 text-[11px] font-black uppercase tracking-[0.22em] text-neutral-400">
-                                        Clothing
-                                    </p>
-
-                                    <div class="space-y-3 text-sm font-semibold normal-case tracking-normal">
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            Longsleeve
-                                        </Link>
-
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            Shirts
-                                        </Link>
-
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            Outerwear
-                                        </Link>
-
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            Pants
-                                        </Link>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <p class="mb-4 text-[11px] font-black uppercase tracking-[0.22em] text-neutral-400">
-                                        Accessories
-                                    </p>
-
-                                    <div class="space-y-3 text-sm font-semibold normal-case tracking-normal">
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            Headwear
-                                        </Link>
-
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            Bags
-                                        </Link>
-
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            Socks
-                                        </Link>
-
-                                        <Link href="/products" class="block hover:text-neutral-500" @click="closeMenus">
-                                            Jewelry
-                                        </Link>
+                                        <div class="space-y-3 text-sm font-semibold normal-case tracking-normal">
+                                            <Link
+                                                v-for="item in group.items"
+                                                :key="item.label"
+                                                :href="item.href"
+                                                class="block hover:text-neutral-500"
+                                                @click="closeMenus"
+                                            >
+                                                {{ item.label }}
+                                            </Link>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -400,7 +396,12 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
-                    <Link href="/cart" aria-label="Cart" class="transition hover:opacity-60" @click="closeMenus">
+                    <Link
+                        href="/cart"
+                        aria-label="Cart"
+                        class="transition hover:opacity-60"
+                        @click="closeMenus"
+                    >
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
                             class="h-6 w-6"
@@ -424,30 +425,47 @@ onBeforeUnmount(() => {
                 class="max-h-[calc(100vh-72px)] overflow-y-auto border-t border-neutral-200 bg-white px-6 py-7 text-neutral-950 shadow-2xl lg:hidden"
             >
                 <div class="space-y-7">
-                    <div>
+                    <div
+                        v-for="group in menuGroups"
+                        :key="group.title"
+                    >
                         <p class="mb-4 text-xs font-black uppercase tracking-[0.25em] text-neutral-400">
-                            Shop
+                            {{ group.title }}
                         </p>
 
                         <div class="grid grid-cols-2 gap-4 text-base font-bold">
-                            <Link href="/products" @click="closeMenus">New Arrivals</Link>
-                            <Link href="/products" @click="closeMenus">All Products</Link>
-                            <Link href="/products" @click="closeMenus">Tees</Link>
-                            <Link href="/products" @click="closeMenus">Hoodies</Link>
-                            <Link href="/products" @click="closeMenus">Outerwear</Link>
-                            <Link href="/products" @click="closeMenus">Pants</Link>
-                            <Link href="/products" @click="closeMenus">Headwear</Link>
-                            <Link href="/products" @click="closeMenus">Bags</Link>
+                            <Link
+                                v-for="item in group.items"
+                                :key="item.label"
+                                :href="item.href"
+                                @click="closeMenus"
+                            >
+                                {{ item.label }}
+                            </Link>
                         </div>
                     </div>
 
                     <div class="border-t border-neutral-200 pt-6">
                         <div class="space-y-4 text-base font-black uppercase tracking-[0.16em]">
-                            <Link href="/products" class="block" @click="closeMenus">Shop</Link>
-                            <Link href="/products" class="block" @click="closeMenus">Collection</Link>
-                            <Link href="/products" class="block" @click="closeMenus">Sale</Link>
-                            <Link href="/products" class="block" @click="closeMenus">Campaign</Link>
-                            <Link href="/cart" class="block" @click="closeMenus">Cart</Link>
+                            <Link href="/products" class="block" @click="closeMenus">
+                                Shop
+                            </Link>
+
+                            <Link href="/products" class="block" @click="closeMenus">
+                                Collection
+                            </Link>
+
+                            <Link href="/products" class="block" @click="closeMenus">
+                                Sale
+                            </Link>
+
+                            <Link href="/products" class="block" @click="closeMenus">
+                                Campaign
+                            </Link>
+
+                            <Link href="/cart" class="block" @click="closeMenus">
+                                Cart
+                            </Link>
 
                             <Link
                                 v-if="isLoggedIn"
@@ -530,10 +548,21 @@ onBeforeUnmount(() => {
                     </h3>
 
                     <div class="mt-5 space-y-3 text-sm text-white/60">
-                        <Link href="/products" class="block hover:text-white">New Arrivals</Link>
-                        <Link href="/products" class="block hover:text-white">All Products</Link>
-                        <Link href="/products" class="block hover:text-white">Clothing</Link>
-                        <Link href="/products" class="block hover:text-white">Accessories</Link>
+                        <Link href="/products" class="block hover:text-white">
+                            New Arrivals
+                        </Link>
+
+                        <Link href="/products" class="block hover:text-white">
+                            All Products
+                        </Link>
+
+                        <Link href="/products?category=tees" class="block hover:text-white">
+                            Tees
+                        </Link>
+
+                        <Link href="/products?category=hoodies" class="block hover:text-white">
+                            Hoodies
+                        </Link>
                     </div>
                 </div>
 
@@ -543,11 +572,25 @@ onBeforeUnmount(() => {
                     </h3>
 
                     <div class="mt-5 space-y-3 text-sm text-white/60">
-                        <Link href="/orders" class="block hover:text-white">Order Status</Link>
-                        <Link href="/account/addresses" class="block hover:text-white">My Addresses</Link>
-                        <a href="#" class="block hover:text-white">FAQ</a>
-                        <a href="#" class="block hover:text-white">Shipping</a>
-                        <a href="#" class="block hover:text-white">Returns</a>
+                        <Link href="/orders" class="block hover:text-white">
+                            Order Status
+                        </Link>
+
+                        <Link href="/account/addresses" class="block hover:text-white">
+                            My Addresses
+                        </Link>
+
+                        <a href="#" class="block hover:text-white">
+                            FAQ
+                        </a>
+
+                        <a href="#" class="block hover:text-white">
+                            Shipping
+                        </a>
+
+                        <a href="#" class="block hover:text-white">
+                            Returns
+                        </a>
                     </div>
                 </div>
 
