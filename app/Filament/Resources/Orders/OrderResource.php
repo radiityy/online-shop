@@ -25,6 +25,10 @@ class OrderResource extends Resource
 
     protected static ?string $modelLabel = 'Order';
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales';
+
+    protected static ?int $navigationSort = 1;
+
     protected static ?string $pluralModelLabel = 'Orders';
 
     protected static ?string $recordTitleAttribute = 'order_code';
