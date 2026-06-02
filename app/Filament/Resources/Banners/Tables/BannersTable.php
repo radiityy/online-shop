@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Banners\Tables;
 
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
@@ -15,33 +16,41 @@ class BannersTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->defaultSort('sort_order')
             ->columns([
+                ImageColumn::make('image_path')
+                    ->label('Image')
+                    ->disk('public')
+                    ->square(),
+
                 TextColumn::make('title')
-                    ->searchable(),
-                TextColumn::make('subtitle')
-                    ->searchable(),
-                ImageColumn::make('image_path'),
+                    ->label('Title')
+                    ->searchable()
+                    ->sortable()
+                    ->weight('bold'),
+
                 TextColumn::make('link_url')
+                    ->label('Link')
+                    ->placeholder('-')
                     ->searchable(),
+
                 TextColumn::make('sort_order')
-                    ->numeric()
+                    ->label('Sort')
                     ->sortable(),
+
                 IconColumn::make('is_active')
-                    ->boolean(),
+                    ->label('Active')
+                    ->boolean()
+                    ->sortable(),
+
                 TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-            ])
-            ->filters([
-                //
+                    ->label('Created')
+                    ->dateTime('d M Y H:i')
+                    ->sortable(),
             ])
             ->recordActions([
                 EditAction::make(),
+                DeleteAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

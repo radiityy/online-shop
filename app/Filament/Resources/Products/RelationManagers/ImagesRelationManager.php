@@ -2,13 +2,10 @@
 
 namespace App\Filament\Resources\Products\RelationManagers;
 
-use Filament\Actions\AssociateAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\DissociateAction;
-use Filament\Actions\DissociateBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
@@ -24,19 +21,35 @@ class ImagesRelationManager extends RelationManager
 {
     protected static string $relationship = 'images';
 
+    protected static ?string $title = 'Product Images';
+
+    protected static ?string $modelLabel = 'Product Image';
+
+    protected static ?string $pluralModelLabel = 'Product Images';
+
     public function form(Schema $schema): Schema
     {
         return $schema
             ->components([
                 FileUpload::make('image_path')
+                    ->label('Image')
                     ->image()
-                    ->required(),
-                Toggle::make('is_primary')
-                    ->required(),
-                TextInput::make('sort_order')
+                    ->disk('public')
+                    ->directory('products')
+                    ->visibility('public')
                     ->required()
+                    ->columnSpanFull(),
+
+                TextInput::make('sort_order')
+                    ->label('Sort Order')
                     ->numeric()
+                    ->integer()
+                    ->minValue(0)
                     ->default(0),
+
+                Toggle::make('is_primary')
+                    ->label('Primary Image')
+                    ->default(false),
             ]);
     }
 
@@ -44,37 +57,49 @@ class ImagesRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('image_path')
+            ->defaultSort('sort_order')
             ->columns([
-                ImageColumn::make('image_path'),
+                ImageColumn::make('image_path')
+                    ->label('Image')
+                    ->disk('public')
+                    ->square(),
+
                 IconColumn::make('is_primary')
-                    ->boolean(),
-                TextColumn::make('sort_order')
-                    ->numeric()
+                    ->label('Primary')
+                    ->boolean()
                     ->sortable(),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-            ])
-            ->filters([
-                //
+
+                TextColumn::make('sort_order')
+                    ->label('Sort')
+                    ->sortable(),
             ])
             ->headerActions([
-                CreateAction::make(),
-                AssociateAction::make(),
+                CreateAction::make()
+                    ->label('Add Image')
+                    ->after(function ($record): void {
+                        if ($record->is_primary) {
+                            $record->product
+                                ->images()
+                                ->where('id', '!=', $record->id)
+                                ->update(['is_primary' => false]);
+                        }
+                    }),
             ])
             ->recordActions([
-                EditAction::make(),
-                DissociateAction::make(),
+                EditAction::make()
+                    ->after(function ($record): void {
+                        if ($record->is_primary) {
+                            $record->product
+                                ->images()
+                                ->where('id', '!=', $record->id)
+                                ->update(['is_primary' => false]);
+                        }
+                    }),
+
                 DeleteAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DissociateBulkAction::make(),
                     DeleteBulkAction::make(),
                 ]),
             ]);
