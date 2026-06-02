@@ -2,13 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Banner extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'title',
         'subtitle',
@@ -18,11 +15,8 @@ class Banner extends Model
         'is_active',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'sort_order' => 'integer',
-            'is_active' => 'boolean',
-        ];
-    }
+    protected $casts = [
+        'is_active' => 'boolean',
+        'sort_order' => 'integer',
+    ];
 }

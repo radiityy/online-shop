@@ -15,27 +15,47 @@ class HomeController extends Controller
         $banners = Banner::query()
             ->where('is_active', true)
             ->orderBy('sort_order')
-            ->get([
-                'id',
-                'title',
-                'subtitle',
-                'image_path',
-                'link_url',
-            ]);
+            ->latest()
+            ->get()
+            ->map(function (Banner $banner) {
+                return [
+                    'id' => $banner->id,
+                    'title' => $banner->title,
+                    'subtitle' => $banner->subtitle,
+                    'image_path' => $banner->image_path,
+                    'link_url' => $banner->link_url ?: '/products',
+                ];
+            })
+            ->values();
 
         $products = Product::query()
-            ->with(['category:id,name,slug', 'primaryImage:id,product_id,image_path'])
+            ->with([
+                'category:id,name,slug',
+                'primaryImage:id,product_id,image_path',
+            ])
             ->where('is_active', true)
             ->latest()
-            ->take(8)
-            ->get([
-                'id',
-                'category_id',
-                'name',
-                'slug',
-                'price',
-                'weight',
-            ]);
+            ->limit(8)
+            ->get()
+            ->map(function (Product $product) {
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'slug' => $product->slug,
+                    'price' => $product->price,
+                    'weight' => $product->weight,
+                    'category' => $product->category ? [
+                        'id' => $product->category->id,
+                        'name' => $product->category->name,
+                        'slug' => $product->category->slug,
+                    ] : null,
+                    'primary_image' => $product->primaryImage ? [
+                        'id' => $product->primaryImage->id,
+                        'image_path' => $product->primaryImage->image_path,
+                    ] : null,
+                ];
+            })
+            ->values();
 
         return Inertia::render('Store/Home', [
             'banners' => $banners,

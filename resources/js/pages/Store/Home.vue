@@ -66,7 +66,7 @@ const formatPrice = (price: string | number) => {
                     <div class="absolute inset-x-0 top-[390px] z-10 px-6 sm:top-[315px] sm:px-10 md:top-[300px] lg:top-[250px] lg:px-[4.5vw] xl:top-[335px]">
                         <div class="mx-auto max-w-[1840px]">
                             <div class="max-w-[1120px] text-white">
-                                <p class="mb-7 text-[11px] font-black uppercase tracking-[0.42em] text-white/85 md:text-xs">
+                                <p class="mb-7 translate-x-[6px] text-[11px] font-black uppercase tracking-[0.42em] text-white/85 md:translate-x-[8px] md:text-xs">
                                     Neverending Daily Wear
                                 </p>
 
