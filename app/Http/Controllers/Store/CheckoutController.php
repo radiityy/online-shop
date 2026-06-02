@@ -242,6 +242,7 @@ class CheckoutController extends Controller
                 'payment_status' => 'pending',
                 'order_status' => 'pending',
                 'shipping_status' => 'not_shipped',
+                'stock_released' => false,
             ]);
 
             foreach ($cart->items as $item) {

@@ -58,6 +58,13 @@ type Order = {
     } | null;
 };
 
+type TimelineStep = {
+    title: string;
+    description: string;
+    done: boolean;
+    failed: boolean;
+};
+
 const props = defineProps<{
     order: Order;
 }>();
@@ -131,27 +138,98 @@ const statusClass = (status: string | null | undefined) => {
 
 const paymentMessage = computed(() => {
     if (props.order.payment_status === 'paid') {
-        return 'Payment confirmed. Your order is being prepared by NEVERENDING.';
+        return 'Your payment has been confirmed. We are now preparing your order.';
     }
 
     if (props.order.payment_status === 'waiting_confirmation') {
-        return 'Payment proof uploaded. Please wait for admin confirmation.';
+        return 'Your payment proof has been received. We are checking your payment now.';
     }
 
     if (props.order.payment_status === 'failed') {
-        return 'Payment verification failed. Please upload a valid payment proof again.';
+        return 'We could not verify your payment proof. Please upload a clearer proof or contact us for help.';
     }
 
     if (props.order.payment_status === 'expired') {
-        return 'Payment has expired. Please contact admin for further assistance.';
+        return 'The payment time for this order has expired. You can place a new order whenever you are ready.';
     }
 
-    return 'Please upload your manual transfer proof to continue the order process.';
+    if (props.order.payment_status === 'refunded') {
+        return 'Your payment for this order has been refunded.';
+    }
+
+    if (props.order.order_status === 'cancelled') {
+        return 'This order has been cancelled and will not be processed further.';
+    }
+
+    return 'Please upload your transfer proof so we can continue processing your order.';
 });
 
-const orderTimeline = computed(() => {
+const failedStatus = computed(() => {
+    if (props.order.payment_status === 'failed') {
+        return {
+            title: 'Payment Failed',
+            description: 'We could not verify your payment proof. Please upload a clearer proof or contact us for help.',
+        };
+    }
+
+    if (props.order.payment_status === 'expired') {
+        return {
+            title: 'Payment Expired',
+            description: 'The payment time for this order has expired. This order will not be processed, but you can place a new order anytime.',
+        };
+    }
+
+    if (props.order.payment_status === 'refunded') {
+        return {
+            title: 'Payment Refunded',
+            description: 'Your payment has been refunded. Please contact us if you need more information.',
+        };
+    }
+
+    if (props.order.order_status === 'cancelled') {
+        return {
+            title: 'Order Cancelled',
+            description: 'This order has been cancelled and will not be processed further. You can place a new order if you still want the item.',
+        };
+    }
+
+    if (props.order.shipping_status === 'returned') {
+        return {
+            title: 'Order Returned',
+            description: 'This order was returned during delivery. Please contact us for more information.',
+        };
+    }
+
+    return null;
+});
+
+const orderTimeline = computed<TimelineStep[]>(() => {
     const paymentUploaded = Boolean(props.order.payment?.proof_image);
     const paymentConfirmed = props.order.payment_status === 'paid';
+
+    if (failedStatus.value) {
+        return [
+            {
+                title: 'Order Created',
+                description: 'Your order has been created successfully.',
+                done: true,
+                failed: false,
+            },
+            {
+                title: 'Payment Proof',
+                description: paymentUploaded ? 'Payment proof has been uploaded.' : 'Payment proof was not completed.',
+                done: paymentUploaded,
+                failed: false,
+            },
+            {
+                title: failedStatus.value.title,
+                description: failedStatus.value.description,
+                done: true,
+                failed: true,
+            },
+        ];
+    }
+
     const orderProcessing = ['processing', 'packed', 'shipped', 'delivered', 'completed'].includes(props.order.order_status);
     const orderPacked = ['packed', 'shipped', 'delivered', 'completed'].includes(props.order.order_status);
     const orderShipped = ['shipped', 'delivered', 'completed'].includes(props.order.shipping_status) || Boolean(props.order.shipment?.tracking_number);
@@ -162,42 +240,51 @@ const orderTimeline = computed(() => {
             title: 'Order Created',
             description: 'Your order has been created successfully.',
             done: true,
+            failed: false,
         },
         {
             title: 'Payment Proof',
             description: paymentUploaded ? 'Payment proof has been uploaded.' : 'Waiting for payment proof upload.',
             done: paymentUploaded,
+            failed: false,
         },
         {
             title: 'Payment Confirmed',
             description: paymentConfirmed ? 'Admin has confirmed your payment.' : 'Waiting for admin payment confirmation.',
             done: paymentConfirmed,
+            failed: false,
         },
         {
             title: 'Processing',
             description: orderProcessing ? 'Your order is being prepared.' : 'Order will be processed after payment confirmation.',
             done: orderProcessing,
+            failed: false,
         },
         {
             title: 'Packed',
             description: orderPacked ? 'Your order has been packed.' : 'Waiting for packing process.',
             done: orderPacked,
+            failed: false,
         },
         {
             title: 'Shipped',
             description: orderShipped ? 'Your order is on delivery.' : 'Waiting for tracking number.',
             done: orderShipped,
+            failed: false,
         },
         {
             title: 'Delivered',
             description: orderDelivered ? 'Order delivered. Enjoy your NEVERENDING piece.' : 'Waiting for delivery completion.',
             done: orderDelivered,
+            failed: false,
         },
     ];
 });
 
 const canUploadProof = computed(() => {
-    return props.order.payment_status !== 'paid';
+    return !['paid', 'refunded', 'expired'].includes(props.order.payment_status)
+        && props.order.order_status !== 'cancelled'
+        && props.order.shipping_status !== 'returned';
 });
 
 const hasTracking = computed(() => {
@@ -337,24 +424,26 @@ const uploadProof = () => {
                                 <div class="relative flex justify-center">
                                     <div
                                         class="z-10 flex h-8 w-8 items-center justify-center rounded-full border text-[11px] font-black"
-                                        :class="step.done
-                                            ? 'border-neutral-950 bg-neutral-950 text-white'
-                                            : 'border-neutral-300 bg-white text-neutral-400'"
+                                        :class="step.failed
+                                            ? 'border-red-600 bg-red-600 text-white'
+                                            : step.done
+                                                ? 'border-neutral-950 bg-neutral-950 text-white'
+                                                : 'border-neutral-300 bg-white text-neutral-400'"
                                     >
-                                        {{ index + 1 }}
+                                        {{ step.failed ? '!' : index + 1 }}
                                     </div>
 
                                     <div
                                         v-if="index !== orderTimeline.length - 1"
                                         class="absolute top-8 h-full w-px"
-                                        :class="step.done ? 'bg-neutral-950' : 'bg-neutral-200'"
+                                        :class="step.failed ? 'bg-red-600' : step.done ? 'bg-neutral-950' : 'bg-neutral-200'"
                                     ></div>
                                 </div>
 
                                 <div class="pb-5">
                                     <p
                                         class="text-sm font-black uppercase tracking-[0.18em]"
-                                        :class="step.done ? 'text-neutral-950' : 'text-neutral-400'"
+                                        :class="step.failed ? 'text-red-600' : step.done ? 'text-neutral-950' : 'text-neutral-400'"
                                     >
                                         {{ step.title }}
                                     </p>
@@ -552,7 +641,7 @@ const uploadProof = () => {
                             v-else
                             class="mt-6 bg-green-50 p-4 text-sm font-bold text-green-700"
                         >
-                            Payment has been confirmed by admin.
+                            Payment proof upload is no longer available for this order.
                         </p>
                     </section>
                 </div>
