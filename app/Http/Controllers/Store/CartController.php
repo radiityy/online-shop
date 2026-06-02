@@ -10,6 +10,8 @@ use App\Models\ProductVariant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -107,55 +109,71 @@ class CartController extends Controller
             'buy_now' => ['nullable', 'boolean'],
         ]);
 
-        $variant = ProductVariant::query()
-            ->with('product')
-            ->where('id', $validated['product_variant_id'])
-            ->where('is_active', true)
-            ->firstOrFail();
+        DB::transaction(function () use ($validated) {
+            $variant = ProductVariant::query()
+                ->with('product')
+                ->whereKey($validated['product_variant_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if (! $variant->product->is_active) {
-            return back()->withErrors([
-                'product_variant_id' => 'Produk tidak aktif.',
-            ]);
-        }
+            if (! $variant->is_active) {
+                throw ValidationException::withMessages([
+                    'product_variant_id' => 'Varian produk tidak aktif.',
+                ]);
+            }
 
-        if ($variant->stock < 1) {
-            return back()->withErrors([
-                'product_variant_id' => 'Stok produk habis.',
-            ]);
-        }
+            if (! $variant->product || ! $variant->product->is_active) {
+                throw ValidationException::withMessages([
+                    'product_variant_id' => 'Produk tidak aktif.',
+                ]);
+            }
 
-        $cart = Cart::query()
-            ->firstOrCreate([
-                'user_id' => Auth::id(),
-            ]);
+            if ($variant->stock < 1) {
+                throw ValidationException::withMessages([
+                    'product_variant_id' => 'Stok produk habis.',
+                ]);
+            }
 
-        $cartItem = CartItem::query()
-            ->where('cart_id', $cart->id)
-            ->where('product_variant_id', $variant->id)
-            ->first();
+            $cart = Cart::query()
+                ->firstOrCreate([
+                    'user_id' => Auth::id(),
+                ]);
 
-        $currentQuantity = $cartItem?->quantity ?? 0;
-        $newQuantity = $currentQuantity + (int) $validated['quantity'];
+            $cart = Cart::query()
+                ->whereKey($cart->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($newQuantity > $variant->stock) {
-            return back()->withErrors([
-                'quantity' => 'Jumlah melebihi stok yang tersedia.',
-            ]);
-        }
+            $cartItem = CartItem::query()
+                ->where('cart_id', $cart->id)
+                ->where('product_variant_id', $variant->id)
+                ->lockForUpdate()
+                ->first();
 
-        if ($cartItem) {
-            $cartItem->update([
-                'quantity' => $newQuantity,
-            ]);
-        } else {
+            $currentQuantity = $cartItem?->quantity ?? 0;
+            $newQuantity = $currentQuantity + (int) $validated['quantity'];
+
+            if ($newQuantity > $variant->stock) {
+                throw ValidationException::withMessages([
+                    'quantity' => 'Jumlah melebihi stok yang tersedia.',
+                ]);
+            }
+
+            if ($cartItem) {
+                $cartItem->update([
+                    'quantity' => $newQuantity,
+                ]);
+
+                return;
+            }
+
             CartItem::query()->create([
                 'cart_id' => $cart->id,
                 'product_id' => $variant->product_id,
                 'product_variant_id' => $variant->id,
                 'quantity' => $validated['quantity'],
             ]);
-        }
+        });
 
         if ($request->boolean('buy_now')) {
             return redirect()->route('checkout.index')
@@ -172,34 +190,58 @@ class CartController extends Controller
             'quantity' => ['required', 'integer', 'min:1'],
         ]);
 
-        $cartItem->load(['cart', 'variant']);
+        DB::transaction(function () use ($cartItem, $validated) {
+            $lockedCartItem = CartItem::query()
+                ->whereKey($cartItem->id)
+                ->with('cart')
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($cartItem->cart->user_id !== Auth::id()) {
-            abort(403);
-        }
+            if ($lockedCartItem->cart->user_id !== Auth::id()) {
+                abort(403);
+            }
 
-        if ((int) $validated['quantity'] > $cartItem->variant->stock) {
-            return back()->withErrors([
-                'quantity' => 'Jumlah melebihi stok yang tersedia.',
+            $variant = ProductVariant::query()
+                ->with('product')
+                ->whereKey($lockedCartItem->product_variant_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! $variant->is_active || ! $variant->product?->is_active) {
+                throw ValidationException::withMessages([
+                    'quantity' => 'Produk sudah tidak aktif.',
+                ]);
+            }
+
+            if ((int) $validated['quantity'] > $variant->stock) {
+                throw ValidationException::withMessages([
+                    'quantity' => 'Jumlah melebihi stok yang tersedia.',
+                ]);
+            }
+
+            $lockedCartItem->update([
+                'quantity' => $validated['quantity'],
             ]);
-        }
-
-        $cartItem->update([
-            'quantity' => $validated['quantity'],
-        ]);
+        });
 
         return back()->with('success', 'Bag berhasil diperbarui.');
     }
 
     public function destroy(CartItem $cartItem): RedirectResponse
     {
-        $cartItem->load('cart');
+        DB::transaction(function () use ($cartItem) {
+            $lockedCartItem = CartItem::query()
+                ->whereKey($cartItem->id)
+                ->with('cart')
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($cartItem->cart->user_id !== Auth::id()) {
-            abort(403);
-        }
+            if ($lockedCartItem->cart->user_id !== Auth::id()) {
+                abort(403);
+            }
 
-        $cartItem->delete();
+            $lockedCartItem->delete();
+        });
 
         return back()->with('success', 'Produk berhasil dihapus dari bag.');
     }

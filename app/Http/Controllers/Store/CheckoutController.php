@@ -8,6 +8,7 @@ use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
+use App\Models\ProductVariant;
 use App\Models\Shipment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,6 +33,18 @@ class CheckoutController extends Controller
         if (! $cart || $cart->items->isEmpty()) {
             return redirect()->route('cart.index')
                 ->with('error', 'Bag masih kosong.');
+        }
+
+        foreach ($cart->items as $item) {
+            if (! $item->product?->is_active || ! $item->variant?->is_active) {
+                return redirect()->route('cart.index')
+                    ->with('error', 'Ada produk yang sudah tidak aktif. Silakan periksa bag kamu.');
+            }
+
+            if ($item->quantity > $item->variant->stock) {
+                return redirect()->route('cart.index')
+                    ->with('error', 'Ada produk dengan jumlah melebihi stok tersedia. Silakan update bag kamu.');
+            }
         }
 
         $items = $cart->items->map(function ($item) {
@@ -114,10 +127,12 @@ class CheckoutController extends Controller
             'save_address' => ['nullable', 'boolean'],
         ]);
 
+        $userId = Auth::id();
+
         if (! empty($validated['address_id'])) {
             $addressBelongsToUser = Address::query()
                 ->where('id', $validated['address_id'])
-                ->where('user_id', Auth::id())
+                ->where('user_id', $userId)
                 ->exists();
 
             if (! $addressBelongsToUser) {
@@ -125,32 +140,66 @@ class CheckoutController extends Controller
             }
         }
 
-        $cart = Cart::query()
-            ->where('user_id', Auth::id())
-            ->with([
+        $result = DB::transaction(function () use ($validated, $userId) {
+            $cart = Cart::query()
+                ->where('user_id', $userId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $cart) {
+                return [
+                    'error' => 'Bag masih kosong.',
+                ];
+            }
+
+            $cart->load([
                 'items.product',
                 'items.variant',
-            ])
-            ->first();
+            ]);
 
-        if (! $cart || $cart->items->isEmpty()) {
-            return redirect()->route('cart.index')
-                ->with('error', 'Bag masih kosong.');
-        }
-
-        foreach ($cart->items as $item) {
-            if (! $item->product->is_active || ! $item->variant->is_active) {
-                return back()->with('error', 'Ada produk yang sudah tidak aktif.');
+            if ($cart->items->isEmpty()) {
+                return [
+                    'error' => 'Bag masih kosong.',
+                ];
             }
 
-            if ($item->quantity > $item->variant->stock) {
-                return back()->with('error', 'Jumlah produk melebihi stok tersedia.');
-            }
-        }
+            $variantIds = $cart->items
+                ->pluck('product_variant_id')
+                ->unique()
+                ->values();
 
-        $order = DB::transaction(function () use ($cart, $validated) {
-            $subtotal = $cart->items->sum(function ($item) {
-                $unitPrice = (float) $item->product->price + (float) $item->variant->additional_price;
+            $lockedVariants = ProductVariant::query()
+                ->with('product')
+                ->whereIn('id', $variantIds)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            foreach ($cart->items as $item) {
+                $variant = $lockedVariants->get($item->product_variant_id);
+
+                if (! $variant || ! $variant->product) {
+                    return [
+                        'error' => 'Ada produk yang tidak ditemukan. Silakan periksa bag kamu.',
+                    ];
+                }
+
+                if (! $variant->product->is_active || ! $variant->is_active) {
+                    return [
+                        'error' => 'Ada produk yang sudah tidak aktif. Silakan periksa bag kamu.',
+                    ];
+                }
+
+                if ($item->quantity > $variant->stock) {
+                    return [
+                        'error' => 'Stok ' . $variant->product->name . ' tidak cukup. Silakan update bag kamu.',
+                    ];
+                }
+            }
+
+            $subtotal = $cart->items->sum(function ($item) use ($lockedVariants) {
+                $variant = $lockedVariants->get($item->product_variant_id);
+                $unitPrice = (float) $variant->product->price + (float) $variant->additional_price;
 
                 return $unitPrice * $item->quantity;
             });
@@ -160,11 +209,11 @@ class CheckoutController extends Controller
 
             if ($validated['save_address'] ?? false) {
                 $hasAddress = Address::query()
-                    ->where('user_id', Auth::id())
+                    ->where('user_id', $userId)
                     ->exists();
 
                 Address::query()->create([
-                    'user_id' => Auth::id(),
+                    'user_id' => $userId,
                     'recipient_name' => $validated['recipient_name'],
                     'phone' => $validated['phone'],
                     'province' => $validated['province'],
@@ -177,8 +226,8 @@ class CheckoutController extends Controller
             }
 
             $order = Order::query()->create([
-                'user_id' => Auth::id(),
-                'order_code' => 'NE-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6)),
+                'user_id' => $userId,
+                'order_code' => $this->generateOrderCode(),
                 'recipient_name' => $validated['recipient_name'],
                 'phone' => $validated['phone'],
                 'province' => $validated['province'],
@@ -196,21 +245,23 @@ class CheckoutController extends Controller
             ]);
 
             foreach ($cart->items as $item) {
-                $unitPrice = (float) $item->product->price + (float) $item->variant->additional_price;
+                $variant = $lockedVariants->get($item->product_variant_id);
+                $product = $variant->product;
+                $unitPrice = (float) $product->price + (float) $variant->additional_price;
 
                 OrderItem::query()->create([
                     'order_id' => $order->id,
                     'product_id' => $item->product_id,
                     'product_variant_id' => $item->product_variant_id,
-                    'product_name' => $item->product->name,
-                    'variant_name' => $item->variant->size ?? $item->variant->sku ?? 'Default',
-                    'sku' => $item->variant->sku,
+                    'product_name' => $product->name,
+                    'variant_name' => $variant->size ?? $variant->sku ?? 'Default',
+                    'sku' => $variant->sku,
                     'price' => $unitPrice,
                     'quantity' => $item->quantity,
                     'subtotal' => $unitPrice * $item->quantity,
                 ]);
 
-                $item->variant->decrement('stock', $item->quantity);
+                $variant->decrement('stock', $item->quantity);
             }
 
             Payment::query()->create([
@@ -230,10 +281,25 @@ class CheckoutController extends Controller
 
             $cart->items()->delete();
 
-            return $order;
+            return [
+                'order' => $order,
+            ];
         });
 
-        return redirect()->route('orders.show', $order->order_code)
+        if (isset($result['error'])) {
+            return back()->with('error', $result['error']);
+        }
+
+        return redirect()->route('orders.show', $result['order']->order_code)
             ->with('success', 'Order berhasil dibuat. Silakan upload bukti pembayaran.');
+    }
+
+    private function generateOrderCode(): string
+    {
+        do {
+            $code = 'NE-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
+        } while (Order::query()->where('order_code', $code)->exists());
+
+        return $code;
     }
 }
