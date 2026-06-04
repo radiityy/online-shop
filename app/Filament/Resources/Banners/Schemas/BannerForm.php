@@ -46,7 +46,7 @@ class BannerForm
                                         'image/png',
                                         'image/webp',
                                     ])
-                                    ->maxSize(4096)
+                                    ->maxSize(20096)
                                     ->disk('public')
                                     ->directory('banners')
                                     ->visibility('public')
