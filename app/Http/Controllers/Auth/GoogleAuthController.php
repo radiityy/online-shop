@@ -15,8 +15,7 @@ class GoogleAuthController extends Controller
 {
     public function redirect(): RedirectResponse
     {
-        return Socialite::driver('google')
-            ->redirect();
+        return Socialite::driver('google')->redirect();
     }
 
     public function callback(): RedirectResponse
@@ -33,7 +32,7 @@ class GoogleAuthController extends Controller
                 $user = User::query()->create([
                     'name' => $googleUser->getName() ?: $googleUser->getNickname() ?: 'NEVERENDING Customer',
                     'email' => $googleUser->getEmail(),
-                    'password' => Hash::make(Str::random(32)),
+                    'password' => Hash::make(Str::random(40)),
                     'role' => 'customer',
                     'google_id' => $googleUser->getId(),
                     'avatar' => $googleUser->getAvatar(),
