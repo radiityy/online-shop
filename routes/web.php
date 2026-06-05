@@ -21,11 +21,11 @@ Route::get('/shipping', [PageController::class, 'shipping'])->name('shipping');
 Route::get('/returns', [PageController::class, 'returns'])->name('returns');
 Route::get('/about', [PageController::class, 'about'])->name('about');
 
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/dashboard', [PageController::class, 'dashboard'])->name('dashboard');
-});
-
 Route::middleware(['auth'])->group(function () {
+    Route::get('/dashboard', function () {
+        return redirect()->route('home');
+    })->name('dashboard');
+
     Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
 
     Route::post('/cart', [CartController::class, 'store'])
