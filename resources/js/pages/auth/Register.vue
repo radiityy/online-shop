@@ -49,12 +49,12 @@ const submit = () => {
                             </p>
                         </div>
 
-                        <Link
-                            :href="route('auth.google.redirect')"
-                            class="mb-5 flex h-12 w-full items-center justify-center border border-neutral-300 bg-white text-xs font-black uppercase tracking-[0.18em] text-neutral-950 transition hover:border-neutral-950 hover:bg-neutral-50"
-                        >
-                            Continue with Google
-                        </Link>
+                            <a
+                                :href="route('auth.google.redirect')"
+                                class="mb-5 flex h-12 w-full items-center justify-center border border-neutral-300 bg-white text-xs font-black uppercase tracking-[0.18em] text-neutral-950 transition hover:border-neutral-950 hover:bg-neutral-50"
+                            >
+                                Continue with Google
+                            </a>
 
                         <div class="mb-5 flex items-center gap-4">
                             <div class="h-px flex-1 bg-neutral-200"></div>
