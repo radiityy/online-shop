@@ -4,7 +4,7 @@
 
 **Modern daily wear for endless rotation.**
 
-A full-stack e-commerce platform designed to provide a clean shopping experience for customers and an efficient store management workflow for administrators.
+NEVERENDING is a full-stack e-commerce web application designed to provide a clean shopping experience for customers and an efficient store management workflow for administrators.
 
 [Live Website](https://online-shop-production-b2b5.up.railway.app)
 
@@ -14,13 +14,15 @@ A full-stack e-commerce platform designed to provide a clean shopping experience
 
 ## About NEVERENDING
 
-NEVERENDING is a modern e-commerce platform focused on daily wear products.
+NEVERENDING is a modern online shop platform focused on daily wear products.
 
-The platform allows customers to discover products, manage their shopping bag, complete checkout, upload payment proof, and monitor order progress.
+The platform allows customers to browse products, manage their shopping bag, complete checkout, upload payment proof, and monitor order progress. On the administration side, store managers can manage products, stock, payments, shipments, banners, and customer orders through a secure admin dashboard.
 
-Store administrators can manage products, stock, payments, shipments, banners, and customer orders through a secure administration dashboard.
+NEVERENDING is built to deliver a simple, clean, and reliable shopping experience for both customers and administrators.
 
-## Features
+---
+
+## Key Features
 
 ### Customer Experience
 
@@ -38,7 +40,7 @@ Store administrators can manage products, stock, payments, shipments, banners, a
 
 ### Store Management
 
-* Secure admin panel powered by Filament
+* Secure admin dashboard powered by Filament
 * Manage banners and categories
 * Manage products and product descriptions
 * Manage regular prices and sale prices
@@ -62,7 +64,9 @@ Store administrators can manage products, stock, payments, shipments, banners, a
 * Prevention of reactivating released or cancelled orders
 * Automated feature and security tests
 
-## Technology Stack
+---
+
+## Tech Stack
 
 | Area            | Technology                       |
 | --------------- | -------------------------------- |
@@ -73,6 +77,22 @@ Store administrators can manage products, stock, payments, shipments, banners, a
 | Asset Bundler   | Vite                             |
 | Deployment      | Railway                          |
 | Version Control | Git, GitHub                      |
+
+---
+
+## Main Pages
+
+| Page            | Description                                                         |
+| --------------- | ------------------------------------------------------------------- |
+| Homepage        | Displays featured products, banners, and main shopping entry points |
+| Product List    | Allows customers to browse and filter products                      |
+| Product Detail  | Shows product information, variants, price, stock, and images       |
+| Shopping Bag    | Allows customers to review and update selected products             |
+| Checkout        | Allows customers to submit orders and delivery information          |
+| Order History   | Allows customers to monitor order progress                          |
+| Admin Dashboard | Allows administrators to manage store operations                    |
+
+---
 
 ## Screenshots
 
@@ -92,152 +112,50 @@ Store administrators can manage products, stock, payments, shipments, banners, a
 
 ![NEVERENDING Admin Dashboard](docs/screenshots/admin-dashboard.png)
 
-## Local Development
+---
 
-### Requirements
+## Design Direction
 
-* PHP 8.3 or newer
-* Composer
-* Node.js LTS
-* npm
-* MySQL
+NEVERENDING uses a clean and modern interface designed for daily wear e-commerce.
 
-### Installation
+The visual direction focuses on:
 
-Clone the repository:
+* Clean layout
+* Product-centered browsing experience
+* Clear checkout flow
+* Responsive design
+* Minimal and readable interface
+* Efficient admin management workflow
 
-```bash
-git clone https://github.com/radiityy/online-shop.git
-cd REPOSITORY
-```
-
-Install backend dependencies:
-
-```bash
-composer install
-```
-
-Install frontend dependencies:
-
-```bash
-npm install
-```
-
-Copy the environment configuration:
-
-```bash
-cp .env.example .env
-```
-
-Generate the application key:
-
-```bash
-php artisan key:generate
-```
-
-Configure the database connection inside `.env`:
-
-```env
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=your_database_name
-DB_USERNAME=your_database_username
-DB_PASSWORD=your_database_password
-
-Run database migrations:
-
-```bash
-php artisan migrate
-```
-
-Create the public storage link:
-
-```bash
-php artisan storage:link
-```
-
-Build frontend assets:
-
-```bash
-npm run build
-```
-
-Run the application:
-
-```bash
-php artisan serve
-```
-
-## Development Commands
-
-Run the Laravel development server:
-
-```bash
-php artisan serve
-```
-
-Run the Vite development server:
-
-```bash
-npm run dev
-```
-
-## Testing
-
-Run the backend test suite:
-
-```bash
-php artisan test
-```
-
-Build frontend production assets:
-
-```bash
-npm run build
-```
-
-## Deployment
-
-Deployment instructions are available in:
-
-```txt
-DEPLOYMENT.md
-```
-
-The final launch checklist is available in:
-
-```txt
-FINAL-LAUNCH-CHECKLIST.md
-```
-
-## Security
-
-Production credentials are not included in this repository.
-
-Do not commit:
-
-* `.env`
-* Application keys
-* Database credentials
-* Admin credentials
-* Third-party service credentials
-* Customer personal information
-
-Security issues should be reported privately to the project maintainer.
+---
 
 ## Project Status
 
 NEVERENDING is actively maintained and prepared for production deployment.
 
-## Maintainer
+---
 
-Developed and maintained by the NEVERENDING team.
+## Future Improvements
+
+* Product wishlist
+* Product reviews and ratings
+* Discount voucher system
+* Order notification system
+* Improved analytics dashboard
+* Advanced product recommendation
+* More detailed customer order tracking
+* Improved mobile shopping experience
+
+---
+
+## Creator
+
+Created by [radiityy](https://github.com/radiityy).
 
 ---
 
 <div align="center">
 
-**NEVERENDING Built for endless rotation.**
+**NEVERENDING - Built for endless rotation.**
 
 </div>
