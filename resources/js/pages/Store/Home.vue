@@ -223,7 +223,7 @@ const discountPercent = (product: Product) => {
                     v-else
                     class="rounded-3xl border border-dashed border-neutral-300 p-12 text-center text-neutral-500"
                 >
-                    Belum ada produk aktif. Tambahkan produk dari admin panel.
+                    No products are available right now.
                 </div>
             </section>
 
