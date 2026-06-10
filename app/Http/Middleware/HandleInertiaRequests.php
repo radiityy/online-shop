@@ -38,13 +38,31 @@ class HandleInertiaRequests extends Middleware
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
-        return array_merge(parent::share($request), [
+        return [
             ...parent::share($request),
+
             'name' => config('app.name'),
-            'quote' => ['message' => trim($message), 'author' => trim($author)],
+
+            'quote' => [
+                'message' => trim($message),
+                'author' => trim($author),
+            ],
+
             'auth' => [
                 'user' => $request->user(),
             ],
-        ]);
+
+            'cart_count' => $request->user()
+            ? \App\Models\Cart::query()
+                ->where('user_id', $request->user()->id)
+                ->withSum('items as total_quantity', 'quantity')
+                ->first()?->total_quantity ?? 0
+            : 0,
+
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
+            ],
+        ];
     }
 }
