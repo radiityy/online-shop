@@ -241,8 +241,7 @@ const discountPercent = (product: Product) => {
 
                     <div>
                         <p class="text-base leading-8 text-white/70">
-                            NEVERENDING menghadirkan pakaian clean, modern, dan mudah dipakai untuk aktivitas sehari-hari.
-                            Setiap koleksi dirancang sebagai bagian dari rotasi outfit yang tidak cepat hilang oleh tren.
+                        NEVERENDING is a daily wear label focused on clean silhouettes, muted details, and easy styling. The pieces are made to be worn often, not just once for a moment.
                         </p>
 
                         <Link
