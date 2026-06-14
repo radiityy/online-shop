@@ -20,6 +20,12 @@ type OrderItem = {
     } | null;
 };
 
+type TrackingHistory = {
+    date?: string;
+    desc?: string;
+    location?: string;
+};
+
 type Order = {
     id: number;
     order_code: string;
@@ -50,9 +56,13 @@ type Order = {
     } | null;
     shipment?: {
         courier: string | null;
+        courier_code: string | null;
         service: string | null;
         tracking_number: string | null;
         status: string;
+        tracking_status: string | null;
+        tracking_history: TrackingHistory[] | null;
+        last_tracked_at: string | null;
         created_at?: string;
         updated_at?: string;
     } | null;
@@ -234,10 +244,20 @@ const orderTimeline = computed<TimelineStep[]>(() => {
         ];
     }
 
-    const orderProcessing = ['processing', 'packed', 'shipped', 'delivered', 'completed'].includes(props.order.order_status);
-    const orderPacked = ['packed', 'shipped', 'delivered', 'completed'].includes(props.order.order_status);
-    const orderShipped = ['shipped', 'delivered', 'completed'].includes(props.order.shipping_status) || Boolean(props.order.shipment?.tracking_number);
-    const orderDelivered = ['delivered', 'completed'].includes(props.order.shipping_status) || ['delivered', 'completed'].includes(props.order.order_status);
+    const orderProcessing = paymentConfirmed
+        && ['processing', 'packed', 'shipped', 'delivered', 'completed'].includes(props.order.order_status);
+
+    const orderPacked = paymentConfirmed
+        && ['packed', 'shipped', 'delivered', 'completed'].includes(props.order.order_status);
+
+    const orderShipped = paymentConfirmed
+        && ['shipped', 'delivered', 'completed'].includes(props.order.shipping_status);
+
+    const orderDelivered = paymentConfirmed
+        && (
+            ['delivered', 'completed'].includes(props.order.shipping_status)
+            || ['delivered', 'completed'].includes(props.order.order_status)
+        );
 
     return [
         {
@@ -272,7 +292,7 @@ const orderTimeline = computed<TimelineStep[]>(() => {
         },
         {
             title: 'Shipped',
-            description: orderShipped ? 'Your order is on delivery.' : 'Waiting for tracking number.',
+            description: orderShipped ? 'Your order is on delivery.' : 'Waiting for shipping process.',
             done: orderShipped,
             failed: false,
         },
@@ -292,7 +312,19 @@ const canUploadProof = computed(() => {
 });
 
 const hasTracking = computed(() => {
-    return Boolean(props.order.shipment?.courier || props.order.shipment?.service || props.order.shipment?.tracking_number);
+    return Boolean(
+        props.order.shipment?.courier
+        || props.order.shipment?.courier_code
+        || props.order.shipment?.service
+        || props.order.shipment?.tracking_number
+        || props.order.shipment?.tracking_status
+    );
+});
+
+const courierLabel = computed(() => {
+    return props.order.shipment?.courier
+        || props.order.shipment?.courier_code?.toUpperCase()
+        || '-';
 });
 
 const handleProofChange = (event: Event) => {
@@ -456,6 +488,85 @@ const uploadProof = () => {
                                         {{ step.description }}
                                     </p>
                                 </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section v-if="order.shipment" class="border border-neutral-200 p-6 md:p-8">
+                        <div class="mb-6">
+                            <p class="text-xs font-black uppercase tracking-[0.3em] text-neutral-500">
+                                Package Tracking
+                            </p>
+
+                            <h2 class="mt-3 text-3xl font-black uppercase tracking-[-0.04em]">
+                                Shipping Detail
+                            </h2>
+                        </div>
+
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div>
+                                <p class="text-xs font-black uppercase tracking-[0.2em] text-neutral-400">
+                                    Courier
+                                </p>
+                                <p class="mt-2 text-sm font-bold text-neutral-800">
+                                    {{ courierLabel }}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p class="text-xs font-black uppercase tracking-[0.2em] text-neutral-400">
+                                    Service
+                                </p>
+                                <p class="mt-2 text-sm font-bold text-neutral-800">
+                                    {{ order.shipment.service || '-' }}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p class="text-xs font-black uppercase tracking-[0.2em] text-neutral-400">
+                                    Tracking Number
+                                </p>
+                                <p class="mt-2 text-sm font-bold text-neutral-800">
+                                    {{ order.shipment.tracking_number || '-' }}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p class="text-xs font-black uppercase tracking-[0.2em] text-neutral-400">
+                                    Tracking Status
+                                </p>
+                                <p class="mt-2 text-sm font-bold text-neutral-800">
+                                    {{ order.shipment.tracking_status || statusLabel(order.shipment.status) || '-' }}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p class="text-xs font-black uppercase tracking-[0.2em] text-neutral-400">
+                                    Last Updated
+                                </p>
+                                <p class="mt-2 text-sm font-bold text-neutral-800">
+                                    {{ order.shipment.last_tracked_at ? formatDate(order.shipment.last_tracked_at) : '-' }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div v-if="order.shipment.tracking_history?.length" class="mt-8 space-y-4">
+                            <div
+                                v-for="(history, index) in order.shipment.tracking_history"
+                                :key="index"
+                                class="border-l border-neutral-300 pl-4"
+                            >
+                                <p class="text-xs font-black uppercase tracking-[0.18em] text-neutral-400">
+                                    {{ history.date || '-' }}
+                                </p>
+
+                                <p class="mt-2 text-sm font-bold text-neutral-800">
+                                    {{ history.desc || '-' }}
+                                </p>
+
+                                <p v-if="history.location" class="mt-1 text-sm text-neutral-500">
+                                    {{ history.location }}
+                                </p>
                             </div>
                         </div>
                     </section>
@@ -698,7 +809,7 @@ const uploadProof = () => {
                         <p class="mt-3 text-neutral-600">
                             Courier:
                             <span class="font-bold text-neutral-950">
-                                {{ order.shipment?.courier ?? '-' }}
+                                {{ courierLabel }}
                             </span>
                         </p>
 
@@ -713,6 +824,20 @@ const uploadProof = () => {
                             Resi:
                             <span class="font-bold text-neutral-950">
                                 {{ order.shipment?.tracking_number ?? '-' }}
+                            </span>
+                        </p>
+
+                        <p class="text-neutral-600">
+                            Status:
+                            <span class="font-bold text-neutral-950">
+                                {{ order.shipment?.tracking_status || statusLabel(order.shipment?.status) }}
+                            </span>
+                        </p>
+
+                        <p class="text-neutral-600">
+                            Last Update:
+                            <span class="font-bold text-neutral-950">
+                                {{ order.shipment?.last_tracked_at ? formatDate(order.shipment.last_tracked_at) : '-' }}
                             </span>
                         </p>
                     </div>

@@ -68,8 +68,24 @@ class OrderForm
                             ->schema([
                                 Grid::make(3)
                                     ->schema([
+                                        Select::make('courier_code')
+                                            ->label('Courier Code')
+                                            ->options([
+                                                'jne' => 'JNE',
+                                                'jnt' => 'J&T',
+                                                'sicepat' => 'SiCepat',
+                                                'anteraja' => 'Anteraja',
+                                                'pos' => 'POS Indonesia',
+                                                'tiki' => 'TIKI',
+                                                'wahana' => 'Wahana',
+                                                'ninja' => 'Ninja Xpress',
+                                                'lion' => 'Lion Parcel',
+                                            ])
+                                            ->searchable()
+                                            ->placeholder('Select courier'),
+
                                         TextInput::make('courier')
-                                            ->label('Courier')
+                                            ->label('Courier Name')
                                             ->placeholder('JNE / J&T / SiCepat')
                                             ->maxLength(255),
 

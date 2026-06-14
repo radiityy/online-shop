@@ -18,6 +18,11 @@ class Shipment extends Model
         'status',
         'shipped_at',
         'delivered_at',
+        'courier_code',
+        'tracking_status',
+        'tracking_history',
+        'tracking_raw_response',
+        'last_tracked_at',
     ];
 
     protected function casts(): array
@@ -25,6 +30,9 @@ class Shipment extends Model
         return [
             'shipped_at' => 'datetime',
             'delivered_at' => 'datetime',
+            'tracking_history' => 'array',
+            'tracking_raw_response' => 'array',
+            'last_tracked_at' => 'datetime',
         ];
     }
 
