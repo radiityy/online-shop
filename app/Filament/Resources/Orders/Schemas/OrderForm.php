@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Orders\Schemas;
 
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -61,12 +63,12 @@ class OrderForm
                     ->columnSpanFull(),
 
                 Section::make('Shipping / Tracking')
-                    ->description('Fill courier information and tracking number.')
+                    ->description('Fill courier information, tracking number, and estimated delivery schedule.')
                     ->schema([
                         Group::make()
                             ->relationship('shipment')
                             ->schema([
-                                Grid::make(3)
+                                Grid::make(2)
                                     ->schema([
                                         Select::make('courier_code')
                                             ->label('Courier Code')
@@ -98,18 +100,35 @@ class OrderForm
                                             ->label('Tracking Number / Resi')
                                             ->placeholder('Nomor resi')
                                             ->maxLength(255),
+
+                                        Select::make('status')
+                                            ->label('Shipment Status')
+                                            ->options([
+                                                'not_shipped' => 'Not Shipped',
+                                                'packed' => 'Packed',
+                                                'shipped' => 'Shipped',
+                                                'delivered' => 'Delivered',
+                                                'returned' => 'Returned',
+                                            ])
+                                            ->required(),
                                     ]),
 
-                                Select::make('status')
-                                    ->label('Shipment Status')
-                                    ->options([
-                                        'not_shipped' => 'Not Shipped',
-                                        'packed' => 'Packed',
-                                        'shipped' => 'Shipped',
-                                        'delivered' => 'Delivered',
-                                        'returned' => 'Returned',
-                                    ])
-                                    ->required(),
+                                Grid::make(2)
+                                    ->schema([
+                                        DateTimePicker::make('estimated_packed_at')
+                                            ->label('Estimated Packed At')
+                                            ->seconds(false),
+
+                                        DateTimePicker::make('estimated_shipped_at')
+                                            ->label('Estimated Shipped At')
+                                            ->seconds(false),
+
+                                        DatePicker::make('estimated_delivered_from')
+                                            ->label('Estimated Delivery From'),
+
+                                        DatePicker::make('estimated_delivered_to')
+                                            ->label('Estimated Delivery To'),
+                                    ]),
                             ]),
                     ])
                     ->columnSpanFull(),

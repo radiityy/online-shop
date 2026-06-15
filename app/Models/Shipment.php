@@ -23,6 +23,10 @@ class Shipment extends Model
         'tracking_history',
         'tracking_raw_response',
         'last_tracked_at',
+        'estimated_packed_at',
+        'estimated_shipped_at',
+        'estimated_delivered_from',
+        'estimated_delivered_to',
     ];
 
     protected function casts(): array
@@ -33,6 +37,10 @@ class Shipment extends Model
             'tracking_history' => 'array',
             'tracking_raw_response' => 'array',
             'last_tracked_at' => 'datetime',
+            'estimated_packed_at' => 'datetime',
+            'estimated_shipped_at' => 'datetime',
+            'estimated_delivered_from' => 'date',
+            'estimated_delivered_to' => 'date',
         ];
     }
 

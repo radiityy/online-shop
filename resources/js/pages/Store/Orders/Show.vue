@@ -26,6 +26,11 @@ type TrackingHistory = {
     location?: string;
 };
 
+type EstimateItem = {
+    label: string;
+    value: string;
+};
+
 type Order = {
     id: number;
     order_code: string;
@@ -63,6 +68,10 @@ type Order = {
         tracking_status: string | null;
         tracking_history: TrackingHistory[] | null;
         last_tracked_at: string | null;
+        estimated_packed_at: string | null;
+        estimated_shipped_at: string | null;
+        estimated_delivered_from: string | null;
+        estimated_delivered_to: string | null;
         created_at?: string;
         updated_at?: string;
     } | null;
@@ -105,6 +114,12 @@ const formatDate = (date: string) => {
     return new Intl.DateTimeFormat('id-ID', {
         dateStyle: 'medium',
         timeStyle: 'short',
+    }).format(new Date(date));
+};
+
+const formatDateOnly = (date: string) => {
+    return new Intl.DateTimeFormat('id-ID', {
+        dateStyle: 'medium',
     }).format(new Date(date));
 };
 
@@ -327,6 +342,49 @@ const courierLabel = computed(() => {
         || '-';
 });
 
+const estimateItems = computed<EstimateItem[]>(() => {
+    const shipment = props.order.shipment;
+
+    if (!shipment) {
+        return [];
+    }
+
+    const items: EstimateItem[] = [];
+
+    if (shipment.estimated_packed_at) {
+        items.push({
+            label: 'Estimated Packed',
+            value: formatDate(shipment.estimated_packed_at),
+        });
+    }
+
+    if (shipment.estimated_shipped_at) {
+        items.push({
+            label: 'Estimated Shipped',
+            value: formatDate(shipment.estimated_shipped_at),
+        });
+    }
+
+    if (shipment.estimated_delivered_from && shipment.estimated_delivered_to) {
+        items.push({
+            label: 'Estimated Arrival',
+            value: `${formatDateOnly(shipment.estimated_delivered_from)} - ${formatDateOnly(shipment.estimated_delivered_to)}`,
+        });
+    } else if (shipment.estimated_delivered_from) {
+        items.push({
+            label: 'Estimated Arrival',
+            value: formatDateOnly(shipment.estimated_delivered_from),
+        });
+    } else if (shipment.estimated_delivered_to) {
+        items.push({
+            label: 'Estimated Arrival',
+            value: formatDateOnly(shipment.estimated_delivered_to),
+        });
+    }
+
+    return items;
+});
+
 const handleProofChange = (event: Event) => {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0] ?? null;
@@ -414,7 +472,7 @@ const uploadProof = () => {
                     </div>
 
                     <p class="mt-4 text-sm leading-6 text-neutral-500">
-                        Current order progress from admin.
+                        Current progress for this order.
                     </p>
                 </div>
 
@@ -501,6 +559,25 @@ const uploadProof = () => {
                             <h2 class="mt-3 text-3xl font-black uppercase tracking-[-0.04em]">
                                 Shipping Detail
                             </h2>
+                        </div>
+
+                        <div
+                            v-if="estimateItems.length"
+                            class="mb-8 grid gap-3 md:grid-cols-3"
+                        >
+                            <div
+                                v-for="item in estimateItems"
+                                :key="item.label"
+                                class="border border-neutral-200 bg-neutral-50 p-4"
+                            >
+                                <p class="text-[11px] font-black uppercase tracking-[0.22em] text-neutral-400">
+                                    {{ item.label }}
+                                </p>
+
+                                <p class="mt-2 text-sm font-black text-neutral-950">
+                                    {{ item.value }}
+                                </p>
+                            </div>
                         </div>
 
                         <div class="grid gap-4 md:grid-cols-2">
@@ -795,6 +872,28 @@ const uploadProof = () => {
                             >
                                 {{ statusLabel(order.shipping_status) }}
                             </span>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="estimateItems.length"
+                        class="mt-6 border border-neutral-200 bg-white p-5 text-sm leading-7"
+                    >
+                        <p class="font-black uppercase tracking-[0.18em] text-neutral-950">
+                            Delivery Estimate
+                        </p>
+
+                        <div class="mt-3 space-y-2">
+                            <p
+                                v-for="item in estimateItems"
+                                :key="item.label"
+                                class="text-neutral-600"
+                            >
+                                {{ item.label }}:
+                                <span class="font-bold text-neutral-950">
+                                    {{ item.value }}
+                                </span>
+                            </p>
                         </div>
                     </div>
 
