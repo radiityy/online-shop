@@ -9,6 +9,7 @@ use App\Http\Controllers\Store\OrderController;
 use App\Http\Controllers\Store\PageController;
 use App\Http\Controllers\Store\PaymentController;
 use App\Http\Controllers\Store\ProductController;
+use App\Http\Controllers\Store\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -46,6 +47,15 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/checkout', [CheckoutController::class, 'store'])
         ->middleware('throttle:8,1')
         ->name('checkout.store');
+
+    Route::get('/notifications', [NotificationController::class, 'index'])
+    ->name('notifications.index');
+
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])
+        ->name('notifications.read-all');
+
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])
+        ->name('notifications.read');
 
     Route::get('/orders', [OrderController::class, 'index'])
         ->name('orders.index');

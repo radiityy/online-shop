@@ -7,6 +7,7 @@ type PageProps = {
         user?: unknown;
     };
     cart_count?: number;
+    unreadNotificationsCount?: number;
     flash?: {
         success?: string | null;
         error?: string | null;
@@ -74,6 +75,7 @@ watch(
     { immediate: true },
 );
 const cartCount = computed(() => Number((page.props as PageProps).cart_count ?? 0));
+const unreadNotificationsCount = computed(() => Number((page.props as PageProps).unreadNotificationsCount ?? 0));
 
 const isShopOpen = ref(false);
 const isAccountOpen = ref(false);
@@ -369,35 +371,67 @@ onBeforeUnmount(() => {
                     NEVERENDING
                 </Link>
 
-                <Link
-                    href="/cart"
-                    aria-label="Cart"
-                    class="relative inline-flex items-center justify-center justify-self-end"
-                    @click="closeMenus"
-                >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-7 w-7"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
+                <div class="flex items-center justify-self-end gap-4">
+                    <Link
+                        v-if="isLoggedIn"
+                        href="/notifications"
+                        aria-label="Notifications"
+                        class="relative inline-flex items-center justify-center"
+                        @click="closeMenus"
                     >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="1.8"
-                            d="M3.75 5.25h2.1l1.8 10.05a2.25 2.25 0 0 0 2.22 1.86h6.65a2.25 2.25 0 0 0 2.2-1.78l1.03-5.13H7.2M9.75 20.25h.01M17.25 20.25h.01"
-                        />
-                    </svg>
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-7 w-7"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.8"
+                                d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0a3 3 0 0 1-6 0m6 0H9"
+                            />
+                        </svg>
 
-                    <span
-                        v-if="cartCount > 0"
-                        class="absolute -right-2 -top-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black leading-none"
-                        :class="showTransparentHeader ? 'bg-white text-neutral-950' : 'bg-neutral-950 text-white'"
+                        <span
+                            v-if="unreadNotificationsCount > 0"
+                            class="absolute -right-2 -top-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black leading-none text-white"
+                        >
+                            {{ unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount }}
+                        </span>
+                    </Link>
+
+                    <Link
+                        href="/cart"
+                        aria-label="Cart"
+                        class="relative inline-flex items-center justify-center"
+                        @click="closeMenus"
                     >
-                        {{ cartCount > 99 ? '99+' : cartCount }}
-                    </span>
-                </Link>
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-7 w-7"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.8"
+                                d="M3.75 5.25h2.1l1.8 10.05a2.25 2.25 0 0 0 2.22 1.86h6.65a2.25 2.25 0 0 0 2.2-1.78l1.03-5.13H7.2M9.75 20.25h.01M17.25 20.25h.01"
+                            />
+                        </svg>
+
+                        <span
+                            v-if="cartCount > 0"
+                            class="absolute -right-2 -top-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black leading-none"
+                            :class="showTransparentHeader ? 'bg-white text-neutral-950' : 'bg-neutral-950 text-white'"
+                        >
+                            {{ cartCount > 99 ? '99+' : cartCount }}
+                        </span>
+                    </Link>
+                </div>
             </div>
 
             <div class="relative hidden h-[62px] items-center lg:block">
@@ -486,6 +520,36 @@ onBeforeUnmount(() => {
                         </svg>
                     </button>
 
+                    <Link
+                        v-if="isLoggedIn"
+                        href="/notifications"
+                        aria-label="Notifications"
+                        class="relative transition hover:opacity-60"
+                        @click="closeMenus"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-6 w-6"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.8"
+                                d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0a3 3 0 0 1-6 0m6 0H9"
+                            />
+                        </svg>
+
+                        <span
+                            v-if="unreadNotificationsCount > 0"
+                            class="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black leading-none text-white"
+                        >
+                            {{ unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount }}
+                        </span>
+                    </Link>
+
                     <div class="relative">
                         <button
                             type="button"
@@ -530,6 +594,22 @@ onBeforeUnmount(() => {
                                     @click="closeMenus"
                                 >
                                     Riwayat Pesanan
+                                </Link>
+
+                                <Link
+                                    v-if="isLoggedIn"
+                                    href="/notifications"
+                                    class="flex items-center justify-between gap-3 hover:text-neutral-500"
+                                    @click="closeMenus"
+                                >
+                                    <span>Notifikasi</span>
+
+                                    <span
+                                        v-if="unreadNotificationsCount > 0"
+                                        class="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-black text-white"
+                                    >
+                                        {{ unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount }}
+                                    </span>
                                 </Link>
 
                                 <Link
@@ -662,7 +742,6 @@ onBeforeUnmount(() => {
                             <Link href="/products" class="block" @click="closeMenus">
                                 Campaign
                             </Link>
-
                             <Link href="/cart" class="block" @click="closeMenus">
                                 Cart
                             </Link>
@@ -683,6 +762,22 @@ onBeforeUnmount(() => {
                                 @click="closeMenus"
                             >
                                 Orders
+                            </Link>
+
+                            <Link
+                                v-if="isLoggedIn"
+                                href="/notifications"
+                                class="flex items-center gap-3"
+                                @click="closeMenus"
+                            >
+                                <span>Notifications</span>
+
+                                <span
+                                    v-if="unreadNotificationsCount > 0"
+                                    class="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-black text-white"
+                                >
+                                    {{ unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount }}
+                                </span>
                             </Link>
 
                             <Link

@@ -2,41 +2,25 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Cart;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
-    /**
-     * The root template that's loaded on the first page visit.
-     *
-     * @see https://inertiajs.com/server-side-setup#root-template
-     *
-     * @var string
-     */
     protected $rootView = 'app';
 
-    /**
-     * Determines the current asset version.
-     *
-     * @see https://inertiajs.com/asset-versioning
-     */
     public function version(Request $request): ?string
     {
         return parent::version($request);
     }
 
-    /**
-     * Define the props that are shared by default.
-     *
-     * @see https://inertiajs.com/shared-data
-     *
-     * @return array<string, mixed>
-     */
     public function share(Request $request): array
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
+
+        $user = $request->user();
 
         return [
             ...parent::share($request),
@@ -49,15 +33,21 @@ class HandleInertiaRequests extends Middleware
             ],
 
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
             ],
 
-            'cart_count' => $request->user()
-            ? \App\Models\Cart::query()
-                ->where('user_id', $request->user()->id)
-                ->withSum('items as total_quantity', 'quantity')
-                ->first()?->total_quantity ?? 0
-            : 0,
+            'cart_count' => $user
+                ? Cart::query()
+                    ->where('user_id', $user->id)
+                    ->withSum('items as total_quantity', 'quantity')
+                    ->first()?->total_quantity ?? 0
+                : 0,
+
+            'unreadNotificationsCount' => $user
+                ? $user->orderNotifications()
+                    ->where('is_read', false)
+                    ->count()
+                : 0,
 
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

@@ -15,7 +15,11 @@ class GoogleAuthController extends Controller
 {
     public function redirect(): RedirectResponse
     {
-        return Socialite::driver('google')->redirect();
+        return Socialite::driver('google')
+            ->with([
+                'prompt' => 'select_account',
+            ])
+            ->redirect();
     }
 
     public function callback(): RedirectResponse
@@ -47,6 +51,10 @@ class GoogleAuthController extends Controller
             }
 
             Auth::login($user, remember: true);
+
+            if ($user->role === 'admin') {
+                return redirect('/admin');
+            }
 
             return redirect()->intended(route('home', absolute: false));
         } catch (Throwable) {

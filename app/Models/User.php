@@ -69,4 +69,9 @@ class User extends Authenticatable implements FilamentUser
     {
         return $panel->getId() === 'admin' && $this->isAdmin();
     }
+
+    public function orderNotifications(): HasMany
+    {
+    return $this->hasMany(OrderNotification::class);
+    }
 }
