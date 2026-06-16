@@ -203,4 +203,8 @@ class Order extends Model
             ])->saveQuietly();
         });
     }
+    public function notifications(): HasMany
+    {
+    return $this->hasMany(OrderNotification::class);
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Orders\Pages;
 
 use App\Filament\Resources\Orders\OrderResource;
+use App\Services\OrderNotificationService;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
@@ -11,6 +12,12 @@ use Filament\Support\Exceptions\Halt;
 class EditOrder extends EditRecord
 {
     protected static string $resource = OrderResource::class;
+
+    protected ?string $previousPaymentStatus = null;
+
+    protected ?string $previousOrderStatus = null;
+
+    protected ?string $previousShippingStatus = null;
 
     protected function getHeaderActions(): array
     {
@@ -21,6 +28,10 @@ class EditOrder extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $this->previousPaymentStatus = $this->record->payment_status;
+        $this->previousOrderStatus = $this->record->order_status;
+        $this->previousShippingStatus = $this->record->shipping_status;
+
         $activePaymentStatuses = [
             'pending',
             'waiting_confirmation',
@@ -72,5 +83,61 @@ class EditOrder extends EditRecord
         }
 
         return $data;
+    }
+
+    protected function afterSave(): void
+    {
+        $this->record->refresh()->load('shipment');
+
+        $service = app(OrderNotificationService::class);
+
+        $paymentStatusChanged = $this->previousPaymentStatus !== $this->record->payment_status;
+        $orderStatusChanged = $this->previousOrderStatus !== $this->record->order_status;
+        $shippingStatusChanged = $this->previousShippingStatus !== $this->record->shipping_status;
+
+        if ($paymentStatusChanged) {
+            match ($this->record->payment_status) {
+                'paid' => $service->notifyPaymentConfirmed($this->record),
+                'failed' => $service->notifyPaymentFailed($this->record),
+                default => null,
+            };
+        }
+
+        if ($orderStatusChanged) {
+            match ($this->record->order_status) {
+                'processing' => $service->notifyOrderProcessing($this->record),
+                'packed' => $service->notifyOrderPacked($this->record),
+                'cancelled' => $service->notifyOrderCancelled($this->record),
+                default => null,
+            };
+        }
+
+        $shouldNotifyShipped =
+            (
+                $orderStatusChanged
+                && $this->record->order_status === 'shipped'
+            )
+            || (
+                $shippingStatusChanged
+                && $this->record->shipping_status === 'shipped'
+            );
+
+        if ($shouldNotifyShipped) {
+            $service->notifyOrderShipped($this->record);
+        }
+
+        $shouldNotifyDelivered =
+            (
+                $orderStatusChanged
+                && in_array($this->record->order_status, ['delivered', 'completed'], true)
+            )
+            || (
+                $shippingStatusChanged
+                && $this->record->shipping_status === 'delivered'
+            );
+
+        if ($shouldNotifyDelivered) {
+            $service->notifyOrderDelivered($this->record);
+        }
     }
 }
