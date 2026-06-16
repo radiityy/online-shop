@@ -16,6 +16,15 @@ class ProductController extends Controller
         $search = trim((string) $request->query('search', ''));
         $categorySlug = trim((string) $request->query('category', ''));
 
+        $user = $request->user();
+
+        $wishlistProductIds = $user
+            ? $user->wishlists()
+                ->pluck('product_id')
+                ->map(fn ($id) => (int) $id)
+                ->all()
+            : [];
+
         $categories = Category::query()
             ->where('is_active', true)
             ->orderBy('name')
@@ -55,7 +64,15 @@ class ProductController extends Controller
             ->orderByRaw('CASE WHEN COALESCE(stock_total, 0) > 0 THEN 0 ELSE 1 END')
             ->latest('products.created_at')
             ->paginate(12)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(function (Product $product) use ($wishlistProductIds) {
+                $product->setAttribute(
+                    'is_wishlisted',
+                    in_array((int) $product->id, $wishlistProductIds, true)
+                );
+
+                return $product;
+            });
 
         return Inertia::render('Store/Products/Index', [
             'categories' => $categories,
@@ -69,6 +86,15 @@ class ProductController extends Controller
 
     public function show(string $slug): Response
     {
+        $user = request()->user();
+
+        $wishlistProductIds = $user
+            ? $user->wishlists()
+                ->pluck('product_id')
+                ->map(fn ($id) => (int) $id)
+                ->all()
+            : [];
+
         $product = Product::query()
             ->with([
                 'category:id,name,slug',
@@ -86,6 +112,11 @@ class ProductController extends Controller
             ->where('is_active', true)
             ->where('slug', $slug)
             ->firstOrFail();
+
+        $product->setAttribute(
+            'is_wishlisted',
+            in_array((int) $product->id, $wishlistProductIds, true)
+        );
 
         $relatedProducts = Product::query()
             ->with([
@@ -109,7 +140,15 @@ class ProductController extends Controller
                 'price',
                 'sale_price',
                 'weight',
-            ]);
+            ])
+            ->map(function (Product $relatedProduct) use ($wishlistProductIds) {
+                $relatedProduct->setAttribute(
+                    'is_wishlisted',
+                    in_array((int) $relatedProduct->id, $wishlistProductIds, true)
+                );
+
+                return $relatedProduct;
+            });
 
         return Inertia::render('Store/Products/Show', [
             'product' => $product,

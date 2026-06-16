@@ -10,6 +10,7 @@ use App\Http\Controllers\Store\PageController;
 use App\Http\Controllers\Store\PaymentController;
 use App\Http\Controllers\Store\ProductController;
 use App\Http\Controllers\Store\NotificationController;
+use App\Http\Controllers\Store\WishlistController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -88,6 +89,18 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/account/addresses/{address}/default', [AddressController::class, 'setDefault'])
         ->middleware('throttle:30,1')
         ->name('account.addresses.default');
+
+    Route::get('/wishlist', [WishlistController::class, 'index'])
+    ->name('wishlist.index');
+
+    Route::post('/wishlist/{product:slug}', [WishlistController::class, 'store'])
+        ->name('wishlist.store');
+
+    Route::delete('/wishlist/{product:slug}', [WishlistController::class, 'destroy'])
+        ->name('wishlist.destroy');
+
+    Route::post('/wishlist/{product:slug}/toggle', [WishlistController::class, 'toggle'])
+        ->name('wishlist.toggle');
 });
 
 require __DIR__ . '/settings.php';

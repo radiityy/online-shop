@@ -42,6 +42,9 @@ class HandleInertiaRequests extends Middleware
                     ->withSum('items as total_quantity', 'quantity')
                     ->first()?->total_quantity ?? 0
                 : 0,
+            'wishlist_count' => $user
+                ? $user->wishlists()->count()
+                : 0,
 
             'unreadNotificationsCount' => $user
                 ? $user->orderNotifications()

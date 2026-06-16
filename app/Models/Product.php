@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Product extends Model
 {
@@ -70,5 +71,15 @@ class Product extends Model
     public function primaryImage()
     {
         return $this->hasOne(ProductImage::class)->where('is_primary', true);
+    }
+
+    public function wishlists(): HasMany
+    {
+    return $this->hasMany(Wishlist::class);
+    }
+
+    public function wishlistedByUsers(): BelongsToMany
+    {
+    return $this->belongsToMany(User::class, 'wishlists')->withTimestamps();
     }
 }
