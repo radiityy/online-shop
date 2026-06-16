@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm } from '@inertiajs/vue3';
 import StoreLayout from '@/layouts/StoreLayout.vue';
 import { computed, ref } from 'vue';
 
@@ -37,6 +37,7 @@ type Product = {
     sale_price?: string | number | null;
     final_price?: string | number;
     is_on_sale?: boolean;
+    is_wishlisted?: boolean;
     weight: number;
     category?: Category;
     images: ProductImage[];
@@ -51,6 +52,7 @@ type RelatedProduct = {
     sale_price?: string | number | null;
     final_price?: string | number;
     is_on_sale?: boolean;
+    is_wishlisted?: boolean;
     category?: Category;
     primary_image?: {
         id: number;
@@ -97,6 +99,16 @@ const firstAvailableVariant = sortedVariants.value.find((variant) => variant.sto
 const selectedVariantId = ref<number | null>(firstAvailableVariant?.id ?? null);
 const quantity = ref(1);
 const activeTab = ref<'description' | 'sizeGuide'>('description');
+const isWishlisted = ref(Boolean(props.product.is_wishlisted));
+const wishlistProcessing = ref(false);
+const relatedWishlistedSlugs = ref<Set<string>>(
+    new Set(
+        props.relatedProducts
+            .filter((item) => Boolean(item.is_wishlisted))
+            .map((item) => item.slug),
+    ),
+);
+const relatedWishlistProcessingSlug = ref<string | null>(null);
 
 const weight = ref<number | null>(null);
 const height = ref<number | null>(null);
@@ -245,6 +257,64 @@ const submitBag = (buyNow = false) => {
     });
 };
 
+const toggleWishlist = () => {
+    if (wishlistProcessing.value) {
+        return;
+    }
+
+    wishlistProcessing.value = true;
+
+    router.post(
+        `/wishlist/${props.product.slug}/toggle`,
+        {},
+        {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                isWishlisted.value = !isWishlisted.value;
+            },
+            onFinish: () => {
+                wishlistProcessing.value = false;
+            },
+        },
+    );
+};
+
+const isRelatedWishlisted = (item: RelatedProduct) => {
+    return relatedWishlistedSlugs.value.has(item.slug);
+};
+
+const toggleRelatedWishlist = (item: RelatedProduct) => {
+    if (relatedWishlistProcessingSlug.value === item.slug) {
+        return;
+    }
+
+    relatedWishlistProcessingSlug.value = item.slug;
+
+    router.post(
+        `/wishlist/${item.slug}/toggle`,
+        {},
+        {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                const next = new Set(relatedWishlistedSlugs.value);
+
+                if (next.has(item.slug)) {
+                    next.delete(item.slug);
+                } else {
+                    next.add(item.slug);
+                }
+
+                relatedWishlistedSlugs.value = next;
+            },
+            onFinish: () => {
+                relatedWishlistProcessingSlug.value = null;
+            },
+        },
+    );
+};
+
 const checkSize = () => {
     if (!weight.value || !height.value) {
         suggestedSize.value = null;
@@ -378,6 +448,16 @@ const checkSize = () => {
                     >
                         {{ totalStock }} total stock available
                     </p>
+
+                    <button
+                        type="button"
+                        class="mt-5 inline-flex border border-neutral-300 px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition hover:border-neutral-950 hover:text-neutral-950 disabled:cursor-wait disabled:opacity-50"
+                        :class="isWishlisted ? 'border-neutral-950 bg-neutral-950 text-white' : 'bg-white text-neutral-500'"
+                        :disabled="wishlistProcessing"
+                        @click="toggleWishlist"
+                    >
+                        {{ isWishlisted ? '♥ Saved' : '♡ Save To Wishlist' }}
+                    </button>
 
                     <div class="mt-8">
                         <div class="mb-4 flex items-center justify-between">
@@ -690,26 +770,30 @@ const checkSize = () => {
                 </div>
 
                 <div class="grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
-                    <Link
+                    <article
                         v-for="item in relatedProducts"
                         :key="item.id"
-                        :href="`/products/${item.slug}`"
                         class="group"
                     >
-                        <div class="relative overflow-hidden bg-neutral-100">
-                            <img
-                                :src="storageUrl(item.primary_image?.image_path)"
-                                :alt="item.name"
-                                class="aspect-[4/5] w-full object-cover transition duration-500 group-hover:scale-105"
-                            />
+                        <Link
+                            :href="`/products/${item.slug}`"
+                            class="block"
+                        >
+                            <div class="relative overflow-hidden bg-neutral-100">
+                                <img
+                                    :src="storageUrl(item.primary_image?.image_path)"
+                                    :alt="item.name"
+                                    class="aspect-[4/5] w-full object-cover transition duration-500 group-hover:scale-105"
+                                />
 
-                            <div
-                                v-if="item.is_on_sale"
-                                class="absolute left-3 top-3 bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
-                            >
-                                -{{ relatedDiscountPercent(item) }}%
+                                <div
+                                    v-if="item.is_on_sale"
+                                    class="absolute left-3 top-3 bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
+                                >
+                                    -{{ relatedDiscountPercent(item) }}%
+                                </div>
                             </div>
-                        </div>
+                        </Link>
 
                         <div class="mt-4">
                             <p
@@ -719,9 +803,12 @@ const checkSize = () => {
                                 {{ item.category.name }}
                             </p>
 
-                            <h3 class="mt-2 text-sm font-black uppercase tracking-tight md:text-base">
+                            <Link
+                                :href="`/products/${item.slug}`"
+                                class="mt-2 block text-sm font-black uppercase tracking-tight transition hover:text-neutral-500 md:text-base"
+                            >
                                 {{ item.name }}
-                            </h3>
+                            </Link>
 
                             <div class="mt-1">
                                 <p
@@ -735,8 +822,18 @@ const checkSize = () => {
                                     {{ formatPrice(item.final_price ?? item.price) }}
                                 </p>
                             </div>
+
+                            <button
+                                type="button"
+                                class="mt-3 text-[11px] font-black uppercase tracking-[0.18em] transition disabled:cursor-wait disabled:opacity-50"
+                                :class="isRelatedWishlisted(item) ? 'text-neutral-950' : 'text-neutral-400 hover:text-neutral-950'"
+                                :disabled="relatedWishlistProcessingSlug === item.slug"
+                                @click="toggleRelatedWishlist(item)"
+                            >
+                                {{ isRelatedWishlisted(item) ? '♥ Saved' : '♡ Save' }}
+                            </button>
                         </div>
-                    </Link>
+                    </article>
                 </div>
             </section>
         </main>

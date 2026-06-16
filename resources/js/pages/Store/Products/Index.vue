@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import StoreLayout from '@/layouts/StoreLayout.vue';
 import { computed, ref, watch } from 'vue';
 
@@ -17,6 +17,7 @@ type Product = {
     sale_price?: string | number | null;
     final_price?: string | number;
     is_on_sale?: boolean;
+    is_wishlisted?: boolean;
     weight: number;
     stock_total?: number | null;
     category?: Category | null;
@@ -40,6 +41,12 @@ type PaginatedProducts = {
     total: number;
 };
 
+type PageProps = {
+    auth?: {
+        user?: unknown;
+    };
+};
+
 const props = defineProps<{
     categories: Category[];
     products: PaginatedProducts;
@@ -49,8 +56,20 @@ const props = defineProps<{
     };
 }>();
 
+const page = usePage();
 const search = ref(props.filters.search ?? '');
 const selectedCategory = ref(props.filters.category ?? '');
+const wishlistProcessingSlug = ref<string | null>(null);
+
+const isLoggedIn = computed(() => Boolean((page.props as PageProps).auth?.user));
+
+const wishlistedSlugs = ref<Set<string>>(
+    new Set(
+        props.products.data
+            .filter((product) => Boolean(product.is_wishlisted))
+            .map((product) => product.slug),
+    ),
+);
 
 const activeCategory = computed(() => {
     return props.categories.find((category) => category.slug === selectedCategory.value) ?? null;
@@ -82,6 +101,60 @@ watch(
         deep: true,
     },
 );
+
+watch(
+    () => props.products.data,
+    (products) => {
+        wishlistedSlugs.value = new Set(
+            products
+                .filter((product) => Boolean(product.is_wishlisted))
+                .map((product) => product.slug),
+        );
+    },
+    {
+        deep: true,
+    },
+);
+
+const isWishlisted = (product: Product) => {
+    return wishlistedSlugs.value.has(product.slug);
+};
+
+const toggleWishlist = (product: Product) => {
+    if (wishlistProcessingSlug.value === product.slug) {
+        return;
+    }
+
+    if (!isLoggedIn.value) {
+        router.visit('/login');
+        return;
+    }
+
+    wishlistProcessingSlug.value = product.slug;
+
+    router.post(
+        `/wishlist/${product.slug}/toggle`,
+        {},
+        {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                const next = new Set(wishlistedSlugs.value);
+
+                if (next.has(product.slug)) {
+                    next.delete(product.slug);
+                } else {
+                    next.add(product.slug);
+                }
+
+                wishlistedSlugs.value = next;
+            },
+            onFinish: () => {
+                wishlistProcessingSlug.value = null;
+            },
+        },
+    );
+};
 
 const storageUrl = (path: string | null | undefined) => {
     if (!path) return '/placeholder-product.jpg';
@@ -236,34 +309,38 @@ const resetFilters = () => {
                     v-if="products.data.length"
                     class="grid grid-cols-2 gap-x-3 gap-y-9 sm:gap-x-6 sm:gap-y-12 lg:grid-cols-4"
                 >
-                    <Link
+                    <article
                         v-for="product in products.data"
                         :key="product.id"
-                        :href="`/products/${product.slug}`"
                         class="group"
                     >
-                       <div class="relative overflow-hidden bg-neutral-100">
-                            <img
-                                :src="storageUrl(product.primary_image?.image_path)"
-                                :alt="product.name"
-                                class="aspect-[4/5] w-full object-cover transition duration-500 group-hover:scale-105"
-                                :class="Number(product.stock_total ?? 0) <= 0 ? 'opacity-60 grayscale' : ''"
-                            />
+                        <Link
+                            :href="`/products/${product.slug}`"
+                            class="block"
+                        >
+                            <div class="relative overflow-hidden bg-neutral-100">
+                                <img
+                                    :src="storageUrl(product.primary_image?.image_path)"
+                                    :alt="product.name"
+                                    class="aspect-[4/5] w-full object-cover transition duration-500 group-hover:scale-105"
+                                    :class="Number(product.stock_total ?? 0) <= 0 ? 'opacity-60 grayscale' : ''"
+                                />
 
-                            <div
-                                v-if="Number(product.stock_total ?? 0) <= 0"
-                                class="absolute left-3 top-3 bg-neutral-950 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
-                            >
-                                Sold Out
-                            </div>
+                                <div
+                                    v-if="Number(product.stock_total ?? 0) <= 0"
+                                    class="absolute left-3 top-3 bg-neutral-950 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
+                                >
+                                    Sold Out
+                                </div>
 
-                            <div
-                                v-else-if="product.is_on_sale"
-                                class="absolute left-3 top-3 bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
-                            >
-                                -{{ discountPercent(product) }}%
+                                <div
+                                    v-else-if="product.is_on_sale"
+                                    class="absolute left-3 top-3 bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
+                                >
+                                    -{{ discountPercent(product) }}%
+                                </div>
                             </div>
-                        </div>
+                        </Link>
 
                         <div class="mt-4">
                             <p
@@ -273,9 +350,12 @@ const resetFilters = () => {
                                 {{ product.category.name }}
                             </p>
 
-                            <h2 class="mt-2 line-clamp-2 min-h-[2.5rem] text-xs font-black uppercase leading-5 tracking-tight sm:text-sm md:text-base">
+                            <Link
+                                :href="`/products/${product.slug}`"
+                                class="mt-2 block line-clamp-2 min-h-[2.5rem] text-xs font-black uppercase leading-5 tracking-tight transition hover:text-neutral-500 sm:text-sm md:text-base"
+                            >
                                 {{ product.name }}
-                            </h2>
+                            </Link>
 
                             <div class="mt-1">
                                 <p
@@ -303,8 +383,18 @@ const resetFilters = () => {
                             >
                                 Out of stock
                             </p>
+
+                            <button
+                                type="button"
+                                class="mt-3 text-[11px] font-black uppercase tracking-[0.18em] transition disabled:cursor-wait disabled:opacity-50"
+                                :class="isWishlisted(product) ? 'text-neutral-950' : 'text-neutral-400 hover:text-neutral-950'"
+                                :disabled="wishlistProcessingSlug === product.slug"
+                                @click="toggleWishlist(product)"
+                            >
+                                {{ isWishlisted(product) ? '♥ Saved' : '♡ Save' }}
+                            </button>
                         </div>
-                    </Link>
+                    </article>
                 </div>
 
                 <div
