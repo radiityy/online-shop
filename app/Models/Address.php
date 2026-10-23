@@ -14,6 +14,8 @@ class Address extends Model
         'province',
         'city',
         'district',
+        'area_id',
+        'area_name',
         'postal_code',
         'full_address',
         'is_default',

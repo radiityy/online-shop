@@ -27,12 +27,19 @@ class Order extends Model
         'full_address',
         'subtotal',
         'shipping_cost',
+        'shipping_insurance_fee',
         'total',
         'payment_status',
         'order_status',
         'shipping_status',
         'stock_released',
         'notes',
+        'area_id',
+        'shipping_courier_code',
+        'shipping_courier_name',
+        'shipping_service_code',
+        'shipping_service_name',
+        'shipping_duration',
     ];
 
     protected function casts(): array

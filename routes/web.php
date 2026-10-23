@@ -8,6 +8,7 @@ use App\Http\Controllers\Store\HomeController;
 use App\Http\Controllers\Store\OrderController;
 use App\Http\Controllers\Store\PageController;
 use App\Http\Controllers\Store\PaymentController;
+use App\Http\Controllers\Store\ShippingController;
 use App\Http\Controllers\Store\ProductController;
 use App\Http\Controllers\Store\NotificationController;
 use App\Http\Controllers\Store\WishlistController;
@@ -48,6 +49,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/checkout', [CheckoutController::class, 'store'])
         ->middleware('throttle:8,1')
         ->name('checkout.store');
+
+    Route::get('/shipping/areas', [ShippingController::class, 'areas'])
+        ->middleware('throttle:30,1')
+        ->name('shipping.areas');
+
+    Route::post('/shipping/rates', [ShippingController::class, 'rates'])
+        ->middleware('throttle:20,1')
+        ->name('shipping.rates');
 
     Route::get('/notifications', [NotificationController::class, 'index'])
     ->name('notifications.index');
