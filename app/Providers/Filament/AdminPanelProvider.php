@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -25,8 +26,15 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->default()
             ->id('admin')
-            ->path('admin')
+            // Path dibaca dari config('app.admin_path'). Kalau kosong, kembali ke "admin".
+            // Tanda "/" di awal atau akhir dibuang supaya panel tidak pernah jatuh ke root.
+            ->path(trim((string) (config('app.admin_path') ?: 'admin'), '/'))
             ->login()
+            ->multiFactorAuthentication([
+                AppAuthentication::make()
+                    ->brandName('NEVERENDING Admin')
+                    ->recoverable(),
+            ], isRequired: true)
             ->colors([
                 'primary' => Color::Amber,
             ])

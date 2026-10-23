@@ -33,7 +33,14 @@ class HandleInertiaRequests extends Middleware
             ],
 
             'auth' => [
-                'user' => $user,
+                'user' => $user ? [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'avatar' => $user->avatar,
+                    'email_verified_at' => $user->email_verified_at,
+                ] : null,
             ],
 
             'cart_count' => $user

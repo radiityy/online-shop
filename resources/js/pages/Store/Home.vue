@@ -109,10 +109,10 @@ const discountPercent = (product: Product) => {
 
                 <div
                     v-else
-                    class="relative flex min-h-[700px] items-center justify-start bg-neutral-100 px-6 sm:px-10 lg:min-h-[720px] lg:px-[7.5vw] xl:min-h-[760px]"
+                    class="relative flex min-h-[700px] items-center justify-start bg-neutral-950 px-6 text-white sm:px-10 lg:min-h-[720px] lg:px-[7.5vw] xl:min-h-[760px]"
                 >
                     <div class="mx-auto w-full max-w-[1840px]">
-                        <p class="text-[11px] font-black uppercase tracking-[0.42em] text-neutral-500 md:text-xs">
+                        <p class="text-[11px] font-black uppercase tracking-[0.42em] text-white/85 md:text-xs">
                             Neverending Daily Wear
                         </p>
 
@@ -120,15 +120,15 @@ const discountPercent = (product: Product) => {
                             New Arrival
                         </h1>
 
-                        <p class="mt-6 text-neutral-600">
-                            Add active banner from admin panel.
+                        <p class="mt-6 max-w-xl text-white/80">
+                            Clean pieces for your everyday movement. Built to stay in your rotation.
                         </p>
 
                         <Link
-                            href="/admin"
-                            class="mt-9 inline-flex rounded-full bg-neutral-950 px-9 py-4 text-[11px] font-black uppercase tracking-[0.26em] text-white transition hover:bg-neutral-800"
+                            href="/products"
+                            class="mt-9 inline-flex rounded-full border border-white bg-white px-9 py-4 text-[11px] font-black uppercase tracking-[0.26em] text-neutral-950 transition duration-300 hover:bg-white/10 hover:text-white hover:backdrop-blur-sm"
                         >
-                            Add Banner
+                            Shop Now
                         </Link>
                     </div>
                 </div>

@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -118,32 +119,28 @@ class CheckoutController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $userId = Auth::id();
+
         $validated = $request->validate([
-            'address_id' => ['nullable', 'exists:addresses,id'],
+            // Hanya menerima alamat milik user ini. ID yang tidak ada dan ID milik
+            // orang lain menghasilkan pesan yang sama, jadi ID alamat orang lain
+            // tidak bisa ditebak lewat respons.
+            'address_id' => [
+                'nullable',
+                Rule::exists('addresses', 'id')->where('user_id', $userId),
+            ],
             'recipient_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:20'],
             'province' => ['required', 'string', 'max:255'],
             'city' => ['required', 'string', 'max:255'],
             'district' => ['required', 'string', 'max:255'],
             'postal_code' => ['nullable', 'string', 'max:10'],
-            'full_address' => ['required', 'string'],
-            'notes' => ['nullable', 'string'],
+            'full_address' => ['required', 'string', 'max:500'],
+            'notes' => ['nullable', 'string', 'max:500'],
             'save_address' => ['nullable', 'boolean'],
         ]);
 
-        $userId = Auth::id();
-
-        if (! empty($validated['address_id'])) {
-            $addressBelongsToUser = Address::query()
-                ->where('id', $validated['address_id'])
-                ->where('user_id', $userId)
-                ->exists();
-
-            if (! $addressBelongsToUser) {
-                abort(403);
-            }
-        }
-
+        // Argumen kedua: transaksi diulang sampai 3 kali bila terjadi deadlock.
         $result = DB::transaction(function () use ($validated, $userId) {
             $cart = Cart::query()
                 ->where('user_id', $userId)
@@ -172,15 +169,23 @@ class CheckoutController extends Controller
                 ->unique()
                 ->values();
 
+            // Urutan id yang konsisten supaya dua checkout bersamaan tidak saling
+            // mengunci dalam urutan berbeda (penyebab deadlock).
             $lockedVariants = ProductVariant::query()
                 ->with('product')
                 ->whereIn('id', $variantIds)
+                ->orderBy('id')
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
 
-            foreach ($cart->items as $item) {
-                $variant = $lockedVariants->get($item->product_variant_id);
+
+            $requiredByVariant = $cart->items
+                ->groupBy('product_variant_id')
+                ->map(fn ($items) => (int) $items->sum('quantity'));
+
+            foreach ($requiredByVariant as $variantId => $requiredQuantity) {
+                $variant = $lockedVariants->get($variantId);
 
                 if (! $variant || ! $variant->product) {
                     return [
@@ -194,7 +199,7 @@ class CheckoutController extends Controller
                     ];
                 }
 
-                if ($item->quantity > $variant->stock) {
+                if ($requiredQuantity > $variant->stock) {
                     return [
                         'error' => 'Stok ' . $variant->product->name . ' tidak cukup. Silakan update bag kamu.',
                     ];
@@ -207,6 +212,7 @@ class CheckoutController extends Controller
 
                 return $unitPrice * $item->quantity;
             });
+
 
             $shippingCost = 15000;
             $total = $subtotal + $shippingCost;
@@ -256,8 +262,9 @@ class CheckoutController extends Controller
 
                 OrderItem::query()->create([
                     'order_id' => $order->id,
-                    'product_id' => $item->product_id,
-                    'product_variant_id' => $item->product_variant_id,
+                    // Diambil dari varian terkunci, bukan dari baris keranjang.
+                    'product_id' => $variant->product_id,
+                    'product_variant_id' => $variant->id,
                     'product_name' => $product->name,
                     'variant_name' => $variant->size ?? $variant->sku ?? 'Default',
                     'sku' => $variant->sku,
@@ -289,7 +296,7 @@ class CheckoutController extends Controller
             return [
                 'order' => $order,
             ];
-        });
+        }, 3);
 
         if (isset($result['error'])) {
             return back()->with('error', $result['error']);
