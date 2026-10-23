@@ -4,14 +4,20 @@ namespace App\Http\Controllers\Store;
 
 use App\Http\Controllers\Controller;
 use App\Models\Address;
+use App\Services\BiteshipService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class AddressController extends Controller
 {
+    public function __construct(private readonly BiteshipService $biteship)
+    {
+    }
+
     public function index(): Response
     {
         $addresses = Address::query()
@@ -27,6 +33,8 @@ class AddressController extends Controller
                     'province' => $address->province,
                     'city' => $address->city,
                     'district' => $address->district,
+                    'area_id' => $address->area_id,
+                    'area_name' => $address->area_name,
                     'postal_code' => $address->postal_code,
                     'full_address' => $address->full_address,
                     'is_default' => $address->is_default,
@@ -41,16 +49,9 @@ class AddressController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'recipient_name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:20'],
-            'province' => ['required', 'string', 'max:255'],
-            'city' => ['required', 'string', 'max:255'],
-            'district' => ['required', 'string', 'max:255'],
-            'postal_code' => ['nullable', 'string', 'max:10'],
-            'full_address' => ['required', 'string'],
-            'is_default' => ['boolean'],
-        ]);
+        $validated = $this->validateAddress($request);
+
+        $area = $this->resolveArea($validated['area_id']);
 
         $hasAddress = Address::query()
             ->where('user_id', Auth::id())
@@ -68,10 +69,12 @@ class AddressController extends Controller
             'user_id' => Auth::id(),
             'recipient_name' => $validated['recipient_name'],
             'phone' => $validated['phone'],
-            'province' => $validated['province'],
-            'city' => $validated['city'],
-            'district' => $validated['district'],
-            'postal_code' => $validated['postal_code'] ?? null,
+            'province' => $area['province'],
+            'city' => $area['city'],
+            'district' => $area['district'],
+            'area_id' => $area['id'],
+            'area_name' => $area['name'],
+            'postal_code' => $validated['postal_code'] ?? $area['postal_code'],
             'full_address' => $validated['full_address'],
             'is_default' => $isDefault,
         ]);
@@ -83,16 +86,7 @@ class AddressController extends Controller
     {
         $this->authorizeAddress($address);
 
-        $validated = $request->validate([
-            'recipient_name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:20'],
-            'province' => ['required', 'string', 'max:255'],
-            'city' => ['required', 'string', 'max:255'],
-            'district' => ['required', 'string', 'max:255'],
-            'postal_code' => ['nullable', 'string', 'max:10'],
-            'full_address' => ['required', 'string'],
-            'is_default' => ['boolean'],
-        ]);
+        $validated = $this->validateAddress($request);
 
         $isDefault = (bool) ($validated['is_default'] ?? false);
 
@@ -103,16 +97,27 @@ class AddressController extends Controller
                 ->update(['is_default' => false]);
         }
 
-        $address->update([
+        $attributes = [
             'recipient_name' => $validated['recipient_name'],
             'phone' => $validated['phone'],
-            'province' => $validated['province'],
-            'city' => $validated['city'],
-            'district' => $validated['district'],
-            'postal_code' => $validated['postal_code'] ?? null,
             'full_address' => $validated['full_address'],
             'is_default' => $isDefault,
-        ]);
+        ];
+
+        if ($address->area_id !== null && $address->area_id === $validated['area_id']) {
+            $attributes['postal_code'] = $validated['postal_code'] ?? $address->postal_code;
+        } else {
+            $area = $this->resolveArea($validated['area_id']);
+
+            $attributes['province'] = $area['province'];
+            $attributes['city'] = $area['city'];
+            $attributes['district'] = $area['district'];
+            $attributes['area_id'] = $area['id'];
+            $attributes['area_name'] = $area['name'];
+            $attributes['postal_code'] = $validated['postal_code'] ?? $area['postal_code'];
+        }
+
+        $address->update($attributes);
 
         return back()->with('success', 'Alamat berhasil diperbarui.');
     }
@@ -154,6 +159,31 @@ class AddressController extends Controller
         ]);
 
         return back()->with('success', 'Alamat utama berhasil diubah.');
+    }
+
+    private function validateAddress(Request $request): array
+    {
+        return $request->validate([
+            'recipient_name' => ['required', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'max:20'],
+            'area_id' => ['required', 'string', 'max:64'],
+            'postal_code' => ['nullable', 'string', 'regex:/^\d{5}$/'],
+            'full_address' => ['required', 'string', 'max:500'],
+            'is_default' => ['boolean'],
+        ]);
+    }
+
+    private function resolveArea(string $areaId): array
+    {
+        $area = $this->biteship->findKnownArea($areaId);
+
+        if ($area === null) {
+            throw ValidationException::withMessages([
+                'area_id' => 'Area tidak valid atau pencarian sudah kedaluwarsa. Cari dan pilih ulang areanya.',
+            ]);
+        }
+
+        return $area;
     }
 
     private function authorizeAddress(Address $address): void

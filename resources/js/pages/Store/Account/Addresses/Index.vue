@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Link, router, useForm } from '@inertiajs/vue3';
+import AreaSearch, { type Area } from '@/components/AreaSearch.vue';
 import StoreLayout from '@/layouts/StoreLayout.vue';
 import { computed, onMounted, ref } from 'vue';
 
@@ -10,6 +11,8 @@ type Address = {
     province: string;
     city: string;
     district: string;
+    area_id: string | null;
+    area_name: string | null;
     postal_code: string | null;
     full_address: string;
     is_default: boolean;
@@ -18,9 +21,7 @@ type Address = {
 type AddressForm = {
     recipient_name: string;
     phone: string;
-    province: string;
-    city: string;
-    district: string;
+    area_id: string;
     postal_code: string;
     full_address: string;
     is_default: boolean;
@@ -31,6 +32,8 @@ const props = defineProps<{
 }>();
 
 const editingId = ref<number | null>(null);
+const areaKey = ref(0);
+const initialAreaName = ref<string | null>(null);
 const isDeleteModalOpen = ref(false);
 const selectedDeleteAddress = ref<Address | null>(null);
 const isDeleting = ref(false);
@@ -38,9 +41,7 @@ const isDeleting = ref(false);
 const form = useForm<AddressForm>({
     recipient_name: '',
     phone: '',
-    province: '',
-    city: '',
-    district: '',
+    area_id: '',
     postal_code: '',
     full_address: '',
     is_default: false,
@@ -55,12 +56,26 @@ const resetForm = () => {
 
     form.recipient_name = '';
     form.phone = '';
-    form.province = '';
-    form.city = '';
-    form.district = '';
+    form.area_id = '';
     form.postal_code = '';
     form.full_address = '';
     form.is_default = props.addresses.length === 0;
+
+    initialAreaName.value = null;
+    areaKey.value++;
+};
+
+const onAreaSelect = (area: Area) => {
+    form.area_id = area.id;
+    form.clearErrors('area_id');
+
+    if (area.postal_code) {
+        form.postal_code = area.postal_code;
+    }
+};
+
+const onAreaClear = () => {
+    form.area_id = '';
 };
 
 const editAddress = (address: Address) => {
@@ -70,12 +85,13 @@ const editAddress = (address: Address) => {
 
     form.recipient_name = address.recipient_name;
     form.phone = address.phone;
-    form.province = address.province;
-    form.city = address.city;
-    form.district = address.district;
+    form.area_id = address.area_id ?? '';
     form.postal_code = address.postal_code ?? '';
     form.full_address = address.full_address;
     form.is_default = address.is_default;
+
+    initialAreaName.value = address.area_name;
+    areaKey.value++;
 
     window.scrollTo({
         top: 0,
@@ -211,6 +227,13 @@ onMounted(() => {
                                         {{ address.district }}, {{ address.city }}, {{ address.province }}
                                         <span v-if="address.postal_code">, {{ address.postal_code }}</span>
                                     </p>
+
+                                    <p
+                                        v-if="!address.area_id"
+                                        class="mt-3 inline-block border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800"
+                                    >
+                                        Select the area again so shipping cost can be calculated.
+                                    </p>
                                 </div>
 
                                 <div class="grid gap-3 md:min-w-[180px]">
@@ -314,88 +337,42 @@ onMounted(() => {
                             </p>
                         </div>
 
-                        <div class="grid gap-5 md:grid-cols-2">
-                            <div>
-                                <label class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
-                                    Province
-                                </label>
+                        <div>
+                            <label class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
+                                District / City
+                            </label>
 
-                                <input
-                                    v-model="form.province"
-                                    type="text"
-                                    class="mt-2 w-full border border-neutral-300 bg-white px-4 py-4 text-sm outline-none transition focus:border-neutral-950"
-                                    placeholder="Banten"
+                            <div class="mt-2">
+                                <AreaSearch
+                                    :key="areaKey"
+                                    :initial-name="initialAreaName"
+                                    :error="form.errors.area_id"
+                                    @select="onAreaSelect"
+                                    @clear="onAreaClear"
                                 />
-
-                                <p
-                                    v-if="form.errors.province"
-                                    class="mt-2 text-sm text-red-600"
-                                >
-                                    {{ form.errors.province }}
-                                </p>
-                            </div>
-
-                            <div>
-                                <label class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
-                                    City
-                                </label>
-
-                                <input
-                                    v-model="form.city"
-                                    type="text"
-                                    class="mt-2 w-full border border-neutral-300 bg-white px-4 py-4 text-sm outline-none transition focus:border-neutral-950"
-                                    placeholder="Tangerang"
-                                />
-
-                                <p
-                                    v-if="form.errors.city"
-                                    class="mt-2 text-sm text-red-600"
-                                >
-                                    {{ form.errors.city }}
-                                </p>
                             </div>
                         </div>
 
-                        <div class="grid gap-5 md:grid-cols-2">
-                            <div>
-                                <label class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
-                                    District
-                                </label>
+                        <div>
+                            <label class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
+                                Postal Code
+                            </label>
 
-                                <input
-                                    v-model="form.district"
-                                    type="text"
-                                    class="mt-2 w-full border border-neutral-300 bg-white px-4 py-4 text-sm outline-none transition focus:border-neutral-950"
-                                    placeholder="Karawaci"
-                                />
+                            <input
+                                v-model="form.postal_code"
+                                type="text"
+                                inputmode="numeric"
+                                maxlength="5"
+                                class="mt-2 w-full border border-neutral-300 bg-white px-4 py-4 text-sm outline-none transition focus:border-neutral-950"
+                                placeholder="151xx"
+                            />
 
-                                <p
-                                    v-if="form.errors.district"
-                                    class="mt-2 text-sm text-red-600"
-                                >
-                                    {{ form.errors.district }}
-                                </p>
-                            </div>
-
-                            <div>
-                                <label class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
-                                    Postal Code
-                                </label>
-
-                                <input
-                                    v-model="form.postal_code"
-                                    type="text"
-                                    class="mt-2 w-full border border-neutral-300 bg-white px-4 py-4 text-sm outline-none transition focus:border-neutral-950"
-                                    placeholder="151xx"
-                                />
-
-                                <p
-                                    v-if="form.errors.postal_code"
-                                    class="mt-2 text-sm text-red-600"
-                                >
-                                    {{ form.errors.postal_code }}
-                                </p>
-                            </div>
+                            <p
+                                v-if="form.errors.postal_code"
+                                class="mt-2 text-sm text-red-600"
+                            >
+                                {{ form.errors.postal_code }}
+                            </p>
                         </div>
 
                         <div>
@@ -407,6 +384,7 @@ onMounted(() => {
                                 v-model="form.full_address"
                                 rows="4"
                                 class="mt-2 w-full border border-neutral-300 bg-white px-4 py-4 text-sm outline-none transition focus:border-neutral-950"
+                                maxlength="500"
                                 placeholder="Street, house number, building detail..."
                             ></textarea>
 
