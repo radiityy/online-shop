@@ -47,6 +47,7 @@ class Order extends Model
         return [
             'subtotal' => 'decimal:2',
             'shipping_cost' => 'decimal:2',
+            'shipping_insurance_fee' => 'decimal:2',
             'total' => 'decimal:2',
             'stock_released' => 'boolean',
         ];

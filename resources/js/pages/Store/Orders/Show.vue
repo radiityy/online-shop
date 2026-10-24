@@ -43,6 +43,10 @@ type Order = {
     full_address: string;
     subtotal: string;
     shipping_cost: string;
+    shipping_insurance_fee: string | null;
+    shipping_courier_name: string | null;
+    shipping_service_name: string | null;
+    shipping_duration: string | null;
     total: string;
     payment_status: string;
     order_status: string;
@@ -340,6 +344,20 @@ const courierLabel = computed(() => {
     return props.order.shipment?.courier
         || props.order.shipment?.courier_code?.toUpperCase()
         || '-';
+});
+
+const insuranceFee = computed(() => Number(props.order.shipping_insurance_fee ?? 0));
+
+const shippingMethod = computed(() => {
+    const name = props.order.shipping_courier_name;
+
+    if (!name) {
+        return null;
+    }
+
+    const label = [name, props.order.shipping_service_name].filter(Boolean).join(' ');
+
+    return props.order.shipping_duration ? `${label} (${props.order.shipping_duration})` : label;
 });
 
 const estimateItems = computed<EstimateItem[]>(() => {
@@ -954,9 +972,26 @@ const uploadProof = () => {
                             <span class="font-black">{{ formatPrice(order.subtotal) }}</span>
                         </div>
 
-                        <div class="flex justify-between">
-                            <span class="text-neutral-500">Shipping</span>
-                            <span class="font-black">{{ formatPrice(order.shipping_cost) }}</span>
+                        <div>
+                            <div class="flex justify-between">
+                                <span class="text-neutral-500">Shipping</span>
+                                <span class="font-black">{{ formatPrice(order.shipping_cost) }}</span>
+                            </div>
+
+                            <p
+                                v-if="shippingMethod"
+                                class="mt-1 text-xs leading-5 text-neutral-500"
+                            >
+                                {{ shippingMethod }}
+                            </p>
+                        </div>
+
+                        <div
+                            v-if="insuranceFee > 0"
+                            class="flex justify-between"
+                        >
+                            <span class="text-neutral-500">Shipment Insurance Fee</span>
+                            <span class="font-black">{{ formatPrice(insuranceFee) }}</span>
                         </div>
                     </div>
 
