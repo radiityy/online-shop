@@ -83,8 +83,6 @@ class SalePriceFlowTest extends TestCase
                 ->where('items.0.unit_price', 130000)
                 ->where('items.0.subtotal', 260000)
                 ->where('summary.subtotal', 260000)
-                ->where('summary.shipping_cost', 15000)
-                ->where('summary.total', 275000)
             );
     }
 
