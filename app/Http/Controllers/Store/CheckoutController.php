@@ -8,7 +8,6 @@ use App\Models\Address;
 use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Payment;
 use App\Models\ProductVariant;
 use App\Models\Shipment;
 use App\Services\ShippingQuoteService;
@@ -279,6 +278,7 @@ class CheckoutController extends Controller
                 'shipping_service_name' => $option['service_name'],
                 'shipping_duration' => $option['duration'] !== '' ? $option['duration'] : null,
                 'total' => $total,
+                'payment_expires_at' => now()->addMinutes((int) config('services.midtrans.expiry_minutes', 60)),
                 'payment_status' => 'pending',
                 'order_status' => 'pending',
                 'shipping_status' => 'not_shipped',
@@ -305,13 +305,6 @@ class CheckoutController extends Controller
                 $variant->decrement('stock', $item->quantity);
             }
 
-            Payment::query()->create([
-                'order_id' => $order->id,
-                'payment_method' => 'manual_transfer',
-                'amount' => $total,
-                'status' => 'pending',
-            ]);
-
             Shipment::query()->create([
                 'order_id' => $order->id,
                 'courier' => $option['courier_name'],
@@ -333,7 +326,7 @@ class CheckoutController extends Controller
         }
 
         return redirect()->route('orders.show', $result['order']->order_code)
-            ->with('success', 'Order berhasil dibuat. Silakan upload bukti pembayaran.');
+                        ->with('success', 'Order berhasil dibuat. Pilih metode pembayaran dan selesaikan dalam 1 jam.');
     }
 
     private function resolveDestination(int $addressId, int $userId): array

@@ -40,6 +40,7 @@ class Order extends Model
         'shipping_service_code',
         'shipping_service_name',
         'shipping_duration',
+        'payment_expires_at',
     ];
 
     protected function casts(): array
@@ -50,6 +51,7 @@ class Order extends Model
             'shipping_insurance_fee' => 'decimal:2',
             'total' => 'decimal:2',
             'stock_released' => 'boolean',
+            'payment_expires_at' => 'datetime',
         ];
     }
 

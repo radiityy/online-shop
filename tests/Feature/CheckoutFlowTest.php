@@ -67,7 +67,8 @@ class CheckoutFlowTest extends TestCase
         $this->assertSame($address->id, $order->address_id);
 
         $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 2]);
-        $this->assertDatabaseHas('payments', ['order_id' => $order->id, 'status' => 'pending']);
+        $this->assertDatabaseMissing('payments', ['order_id' => $order->id]);
+        $this->assertNotNull($order->payment_expires_at);
         $this->assertDatabaseHas('shipments', ['order_id' => $order->id, 'courier_code' => 'jnt']);
         $this->assertDatabaseMissing('cart_items', ['id' => $item->id]);
         $this->assertSame(8, $item->variant()->first()->stock);

@@ -5,12 +5,13 @@ use App\Http\Controllers\Store\AddressController;
 use App\Http\Controllers\Store\CartController;
 use App\Http\Controllers\Store\CheckoutController;
 use App\Http\Controllers\Store\HomeController;
+use App\Http\Controllers\Store\MidtransWebhookController;
+use App\Http\Controllers\Store\NotificationController;
 use App\Http\Controllers\Store\OrderController;
 use App\Http\Controllers\Store\PageController;
 use App\Http\Controllers\Store\PaymentController;
-use App\Http\Controllers\Store\ShippingController;
 use App\Http\Controllers\Store\ProductController;
-use App\Http\Controllers\Store\NotificationController;
+use App\Http\Controllers\Store\ShippingController;
 use App\Http\Controllers\Store\WishlistController;
 use Illuminate\Support\Facades\Route;
 
@@ -23,6 +24,10 @@ Route::get('/faq', [PageController::class, 'faq'])->name('faq');
 Route::get('/shipping', [PageController::class, 'shipping'])->name('shipping');
 Route::get('/returns', [PageController::class, 'returns'])->name('returns');
 Route::get('/about', [PageController::class, 'about'])->name('about');
+
+Route::post('/webhooks/midtrans', MidtransWebhookController::class)
+    ->middleware('throttle:120,1')
+    ->name('webhooks.midtrans');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function () {
@@ -59,7 +64,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('shipping.rates');
 
     Route::get('/notifications', [NotificationController::class, 'index'])
-    ->name('notifications.index');
+        ->name('notifications.index');
 
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])
         ->name('notifications.read-all');
@@ -76,6 +81,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/orders/{orderCode}/payment-proof', [PaymentController::class, 'uploadProof'])
         ->middleware('throttle:5,1')
         ->name('orders.payment-proof');
+
+    Route::post('/orders/{orderCode}/pay', [PaymentController::class, 'pay'])
+        ->middleware('throttle:6,1')
+        ->name('orders.pay');
+
+    Route::post('/orders/{orderCode}/payment/refresh', [PaymentController::class, 'refresh'])
+        ->middleware('throttle:12,1')
+        ->name('orders.payment.refresh');
 
     Route::get('/account', [AccountController::class, 'index'])
         ->name('account.index');
@@ -100,7 +113,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('account.addresses.default');
 
     Route::get('/wishlist', [WishlistController::class, 'index'])
-    ->name('wishlist.index');
+        ->name('wishlist.index');
 
     Route::post('/wishlist/{product:slug}', [WishlistController::class, 'store'])
         ->name('wishlist.store');

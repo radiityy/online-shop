@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Link, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm } from '@inertiajs/vue3';
 import StoreLayout from '@/layouts/StoreLayout.vue';
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 type OrderItem = {
     id: number;
@@ -48,6 +48,7 @@ type Order = {
     shipping_service_name: string | null;
     shipping_duration: string | null;
     total: string;
+    payment_expires_at: string | null;
     payment_status: string;
     order_status: string;
     shipping_status: string;
@@ -56,10 +57,20 @@ type Order = {
     updated_at: string;
     items: OrderItem[];
     payment?: {
+        id: number;
         payment_method: string;
+        payment_type: string | null;
+        bank: string | null;
+        gateway: string | null;
+        gateway_status: string | null;
+        va_number: string | null;
+        qr_url: string | null;
+        deeplink_url: string | null;
         amount: string;
+        fee: string | null;
         status: string;
         proof_image: string | null;
+        expires_at: string | null;
         created_at?: string;
         updated_at?: string;
     } | null;
@@ -88,8 +99,18 @@ type TimelineStep = {
     failed: boolean;
 };
 
+type PaymentMethod = {
+    key: string;
+    label: string;
+    payment_type: string;
+    fee: number;
+    amount: number;
+};
+
 const props = defineProps<{
     order: Order;
+    paymentMethods: PaymentMethod[];
+    serverNow: string;
 }>();
 
 const selectedProofName = ref<string | null>(null);
@@ -98,6 +119,123 @@ const form = useForm<{
     proof_image: File | null;
 }>({
     proof_image: null,
+});
+
+const isGatewayOrder = computed(() => Boolean(props.order.payment_expires_at));
+
+const gatewayPayment = computed(() => (props.order.payment?.gateway ? props.order.payment : null));
+
+const activePayment = computed(() =>
+    gatewayPayment.value && gatewayPayment.value.status === 'pending' ? gatewayPayment.value : null,
+);
+
+const clockOffset = new Date(props.serverNow).getTime() - Date.now();
+const now = ref(Date.now() + clockOffset);
+
+const remainingSeconds = computed(() => {
+    if (!props.order.payment_expires_at) return 0;
+
+    return Math.max(0, Math.floor((new Date(props.order.payment_expires_at).getTime() - now.value) / 1000));
+});
+
+const countdown = computed(() => {
+    const total = remainingSeconds.value;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const seconds = total % 60;
+
+    return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
+});
+
+const isAwaitingPayment = computed(
+    () =>
+        isGatewayOrder.value
+        && props.order.payment_status === 'pending'
+        && props.order.order_status !== 'cancelled'
+        && remainingSeconds.value > 0,
+);
+
+const windowClosed = computed(
+    () => isGatewayOrder.value && props.order.payment_status === 'pending' && remainingSeconds.value === 0,
+);
+
+const amountDue = computed(() => (activePayment.value ? Number(activePayment.value.amount) : Number(props.order.total)));
+
+const activeMethodLabel = computed(() => {
+    const key = activePayment.value?.payment_method;
+
+    return props.paymentMethods.find((method) => method.key === key)?.label ?? key ?? '';
+});
+
+const showMethodModal = ref(false);
+const selectedMethod = ref<string | null>(null);
+const refreshing = ref(false);
+const copied = ref(false);
+
+const payForm = useForm<{ method: string }>({ method: '' });
+
+const openMethodModal = () => {
+    selectedMethod.value = activePayment.value?.payment_method ?? null;
+    showMethodModal.value = true;
+};
+
+const confirmMethod = () => {
+    if (!selectedMethod.value) return;
+
+    payForm.method = selectedMethod.value;
+    payForm.post(`/orders/${props.order.order_code}/pay`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showMethodModal.value = false;
+        },
+    });
+};
+
+const refreshStatus = () => {
+    router.post(
+        `/orders/${props.order.order_code}/payment/refresh`,
+        {},
+        {
+            preserveScroll: true,
+            onStart: () => {
+                refreshing.value = true;
+            },
+            onFinish: () => {
+                refreshing.value = false;
+            },
+        },
+    );
+};
+
+const copyText = async (value: string) => {
+    try {
+        await navigator.clipboard.writeText(value);
+        copied.value = true;
+        window.setTimeout(() => {
+            copied.value = false;
+        }, 2000);
+    } catch {
+        copied.value = false;
+    }
+};
+
+let timer: number | undefined;
+let tick = 0;
+
+onMounted(() => {
+    timer = window.setInterval(() => {
+        now.value = Date.now() + clockOffset;
+        tick += 1;
+
+        if ((isAwaitingPayment.value || windowClosed.value) && tick % 10 === 0) {
+            router.reload({ only: ['order'] });
+        }
+    }, 1000);
+});
+
+onBeforeUnmount(() => {
+    if (timer) window.clearInterval(timer);
 });
 
 const storageUrl = (path: string | null | undefined) => {
@@ -190,6 +328,12 @@ const paymentMessage = computed(() => {
         return 'This order has been cancelled and will not be processed further.';
     }
 
+    if (isGatewayOrder.value) {
+        return windowClosed.value
+            ? 'The payment time for this order has ended. It will be closed shortly.'
+            : 'Choose a payment method and complete your payment before the time runs out.';
+    }
+
     return 'Please upload your transfer proof so we can continue processing your order.';
 });
 
@@ -233,8 +377,12 @@ const failedStatus = computed(() => {
 });
 
 const orderTimeline = computed<TimelineStep[]>(() => {
-    const paymentUploaded = Boolean(props.order.payment?.proof_image);
+    const gateway = isGatewayOrder.value;
+    const paymentUploaded = gateway
+        ? Boolean(gatewayPayment.value)
+        : Boolean(props.order.payment?.proof_image);
     const paymentConfirmed = props.order.payment_status === 'paid';
+    const proofTitle = gateway ? 'Payment Method' : 'Payment Proof';
 
     if (failedStatus.value) {
         const proofStepDone = paymentUploaded || ['failed', 'refunded'].includes(props.order.payment_status);
@@ -247,10 +395,10 @@ const orderTimeline = computed<TimelineStep[]>(() => {
                 failed: false,
             },
             {
-                title: 'Payment Proof',
+                title: proofTitle,
                 description: proofStepDone
-                    ? 'Payment proof has been submitted.'
-                    : 'Payment proof was not completed.',
+                    ? (gateway ? 'A payment method was selected.' : 'Payment proof has been submitted.')
+                    : (gateway ? 'No payment method was selected.' : 'Payment proof was not completed.'),
                 done: proofStepDone,
                 failed: false,
             },
@@ -286,14 +434,18 @@ const orderTimeline = computed<TimelineStep[]>(() => {
             failed: false,
         },
         {
-            title: 'Payment Proof',
-            description: paymentUploaded ? 'Payment proof has been uploaded.' : 'Waiting for payment proof upload.',
+            title: proofTitle,
+            description: paymentUploaded
+                ? (gateway ? 'A payment method was selected.' : 'Payment proof has been uploaded.')
+                : (gateway ? 'Waiting for you to choose a payment method.' : 'Waiting for payment proof upload.'),
             done: paymentUploaded,
             failed: false,
         },
         {
             title: 'Payment Confirmed',
-            description: paymentConfirmed ? 'Admin has confirmed your payment.' : 'Waiting for admin payment confirmation.',
+            description: paymentConfirmed
+                ? (gateway ? 'Your payment has been received.' : 'Admin has confirmed your payment.')
+                : (gateway ? 'Waiting for your payment.' : 'Waiting for admin payment confirmation.'),
             done: paymentConfirmed,
             failed: false,
         },
@@ -325,7 +477,8 @@ const orderTimeline = computed<TimelineStep[]>(() => {
 });
 
 const canUploadProof = computed(() => {
-    return !['paid', 'failed', 'refunded', 'expired'].includes(props.order.payment_status)
+    return !isGatewayOrder.value
+        && !['paid', 'failed', 'refunded', 'expired'].includes(props.order.payment_status)
         && props.order.order_status !== 'cancelled'
         && props.order.shipping_status !== 'returned';
 });
@@ -438,7 +591,7 @@ const uploadProof = () => {
                         </h1>
 
                         <p class="mt-4 max-w-xl text-sm leading-7 text-neutral-600 md:text-base">
-                            Track your NEVERENDING order, upload payment proof, and check shipping progress.
+                            Track your NEVERENDING order, complete your payment, and check shipping progress.
                         </p>
 
                         <p class="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
@@ -759,7 +912,133 @@ const uploadProof = () => {
                         </div>
                     </section>
 
-                    <section class="border border-neutral-200 p-6 md:p-8">
+                    <section v-if="isGatewayOrder" class="border border-neutral-200 p-6 md:p-8">
+                        <div class="mb-6">
+                            <p class="text-xs font-black uppercase tracking-[0.3em] text-neutral-500">
+                                Payment
+                            </p>
+
+                            <h2 class="mt-3 text-3xl font-black uppercase tracking-[-0.04em]">
+                                Pay Your Order
+                            </h2>
+                        </div>
+
+                        <p
+                            v-if="order.payment_status === 'paid'"
+                            class="bg-green-50 p-4 text-sm font-bold text-green-700"
+                        >
+                            Payment received. Thank you!
+                        </p>
+
+                        <template v-else-if="isAwaitingPayment">
+                            <div class="flex items-center justify-between gap-4 bg-neutral-950 p-5 text-white">
+                                <div>
+                                    <p class="text-[11px] font-black uppercase tracking-[0.22em] text-neutral-400">
+                                        Pay within
+                                    </p>
+                                    <p class="mt-1 text-3xl font-black tabular-nums">
+                                        {{ countdown }}
+                                    </p>
+                                </div>
+
+                                <div class="text-right">
+                                    <p class="text-[11px] font-black uppercase tracking-[0.22em] text-neutral-400">
+                                        Amount due
+                                    </p>
+                                    <p class="mt-1 text-2xl font-black">
+                                        {{ formatPrice(amountDue) }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="activePayment"
+                                class="mt-6 border border-neutral-200 bg-neutral-50 p-5 text-sm leading-7 text-neutral-700"
+                            >
+                                <p class="font-black uppercase tracking-[0.18em] text-neutral-950">
+                                    {{ activeMethodLabel }}
+                                </p>
+
+                                <div v-if="activePayment.va_number" class="mt-3">
+                                    <p class="text-neutral-500">Virtual account number</p>
+
+                                    <div class="mt-1 flex items-center justify-between gap-3">
+                                        <p class="text-xl font-black tracking-wider text-neutral-950">
+                                            {{ activePayment.va_number }}
+                                        </p>
+
+                                        <button
+                                            type="button"
+                                            class="border border-neutral-950 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] transition hover:bg-neutral-950 hover:text-white"
+                                            @click="copyText(activePayment.va_number as string)"
+                                        >
+                                            {{ copied ? 'Copied' : 'Copy' }}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div v-if="activePayment.qr_url" class="mt-4 text-center">
+                                    <img
+                                        :src="activePayment.qr_url"
+                                        alt="Payment QR code"
+                                        class="mx-auto h-56 w-56 bg-white object-contain"
+                                    />
+                                    <p class="mt-2 text-xs text-neutral-500">
+                                        Scan with any e-wallet or mobile banking app that supports QRIS.
+                                    </p>
+                                </div>
+
+                                <a
+                                    v-if="activePayment.deeplink_url"
+                                    :href="activePayment.deeplink_url"
+                                    class="mt-4 flex w-full justify-center bg-neutral-950 px-6 py-3 text-xs font-black uppercase tracking-[0.2em] text-white transition hover:bg-neutral-800 md:hidden"
+                                >
+                                    Open GoPay
+                                </a>
+
+                                <p v-if="Number(activePayment.fee) > 0" class="mt-4 text-xs text-neutral-500">
+                                    Includes a payment fee of {{ formatPrice(activePayment.fee ?? 0) }}.
+                                </p>
+                            </div>
+
+                            <p v-else class="mt-6 text-sm text-neutral-600">
+                                Choose how you would like to pay.
+                            </p>
+
+                            <div class="mt-6 grid gap-3 sm:grid-cols-2">
+                                <button
+                                    type="button"
+                                    class="bg-neutral-950 px-6 py-4 text-xs font-black uppercase tracking-[0.2em] text-white transition hover:bg-neutral-800"
+                                    @click="openMethodModal"
+                                >
+                                    {{ activePayment ? 'Change Payment Method' : 'Choose Payment Method' }}
+                                </button>
+
+                                <button
+                                    v-if="activePayment"
+                                    type="button"
+                                    :disabled="refreshing"
+                                    class="border border-neutral-950 bg-white px-6 py-4 text-xs font-black uppercase tracking-[0.2em] text-neutral-950 transition hover:bg-neutral-950 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                    @click="refreshStatus"
+                                >
+                                    {{ refreshing ? 'Checking...' : 'I Have Paid' }}
+                                </button>
+                            </div>
+                        </template>
+
+                        <p
+                            v-else-if="windowClosed"
+                            class="bg-yellow-50 p-4 text-sm font-bold text-yellow-700"
+                        >
+                            The payment time for this order has ended. It will be closed shortly.
+                        </p>
+
+                        <p v-else class="bg-neutral-100 p-4 text-sm text-neutral-600">
+                            This order is no longer awaiting payment.
+                        </p>
+                    </section>
+
+                    <section v-else class="border border-neutral-200 p-6 md:p-8">
                         <div class="mb-6">
                             <p class="text-xs font-black uppercase tracking-[0.3em] text-neutral-500">
                                 Payment Proof
@@ -1005,6 +1284,22 @@ const uploadProof = () => {
                         </span>
                     </div>
 
+                    <div
+                        v-if="activePayment && Number(activePayment.fee) > 0"
+                        class="mt-3 flex justify-between text-sm"
+                    >
+                        <span class="text-neutral-500">Payment Fee ({{ activeMethodLabel }})</span>
+                        <span class="font-black">{{ formatPrice(activePayment.fee ?? 0) }}</span>
+                    </div>
+
+                    <div
+                        v-if="activePayment"
+                        class="mt-3 flex justify-between text-sm font-black"
+                    >
+                        <span class="uppercase tracking-[0.12em]">Amount Due</span>
+                        <span>{{ formatPrice(amountDue) }}</span>
+                    </div>
+
                     <Link
                         href="/products"
                         class="mt-8 flex w-full justify-center bg-neutral-950 px-8 py-4 text-xs font-black uppercase tracking-[0.22em] text-white transition hover:bg-neutral-800"
@@ -1021,5 +1316,59 @@ const uploadProof = () => {
                 </aside>
             </section>
         </main>
+
+        <div
+            v-if="showMethodModal"
+            class="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 sm:items-center"
+            @click.self="showMethodModal = false"
+        >
+            <div class="max-h-[90vh] w-full overflow-y-auto bg-white p-6 sm:max-w-md">
+                <div class="mb-5 flex items-center justify-between">
+                    <h3 class="text-xl font-black uppercase tracking-[-0.02em]">
+                        Payment Method
+                    </h3>
+
+                    <button
+                        type="button"
+                        class="text-xs font-black uppercase tracking-[0.18em] text-neutral-500"
+                        @click="showMethodModal = false"
+                    >
+                        Close
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <button
+                        v-for="method in paymentMethods"
+                        :key="method.key"
+                        type="button"
+                        class="flex w-full items-center justify-between border p-4 text-left transition"
+                        :class="selectedMethod === method.key ? 'border-neutral-950 bg-neutral-50' : 'border-neutral-200 hover:border-neutral-400'"
+                        @click="selectedMethod = method.key"
+                    >
+                        <span class="text-sm font-black uppercase tracking-[0.08em]">
+                            {{ method.label }}
+                        </span>
+
+                        <span class="text-xs text-neutral-500">
+                            {{ method.fee > 0 ? `+ ${formatPrice(method.fee)}` : 'No fee' }}
+                        </span>
+                    </button>
+                </div>
+
+                <p v-if="payForm.errors.method" class="mt-3 text-sm text-red-600">
+                    {{ payForm.errors.method }}
+                </p>
+
+                <button
+                    type="button"
+                    :disabled="!selectedMethod || payForm.processing"
+                    class="mt-6 w-full bg-neutral-950 px-8 py-4 text-xs font-black uppercase tracking-[0.22em] text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
+                    @click="confirmMethod"
+                >
+                    {{ payForm.processing ? 'Processing...' : 'Confirm Payment Method' }}
+                </button>
+            </div>
+        </div>
     </StoreLayout>
 </template>

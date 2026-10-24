@@ -47,6 +47,7 @@ class MidtransService
         int $grossAmount,
         array $customer = [],
         ?string $returnUrl = null,
+        ?int $expiryMinutes = null,
     ): array {
         $method = $this->method($methodKey);
 
@@ -61,7 +62,7 @@ class MidtransService
                 'gross_amount' => $grossAmount,
             ],
             'custom_expiry' => [
-                'expiry_duration' => (int) config('services.midtrans.expiry_minutes', 60),
+                'expiry_duration' => max(1, $expiryMinutes ?? (int) config('services.midtrans.expiry_minutes', 60)),
                 'unit' => 'minute',
             ],
         ];
