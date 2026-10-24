@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link, router, useForm } from '@inertiajs/vue3';
+import { Link, router, usePage, useForm } from '@inertiajs/vue3';
 import AreaSearch, { type Area } from '@/components/AreaSearch.vue';
 import StoreLayout from '@/layouts/StoreLayout.vue';
 import { computed, onMounted, ref } from 'vue';
@@ -30,6 +30,14 @@ type AddressForm = {
 const props = defineProps<{
     addresses: Address[];
 }>();
+
+const page = usePage();
+
+const fromCheckout = computed(() => {
+    const query = page.url.split('?')[1] ?? '';
+
+    return new URLSearchParams(query).get('from') === 'checkout';
+});
 
 const editingId = ref<number | null>(null);
 const areaKey = ref(0);
@@ -178,14 +186,31 @@ onMounted(() => {
                         <p class="mt-4 max-w-xl text-sm leading-7 text-neutral-600 md:text-base">
                             Manage your delivery addresses for faster NEVERENDING checkout.
                         </p>
+
+                        <p
+                            v-if="fromCheckout"
+                            class="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-neutral-500"
+                        >
+                            Checkout uses your default address.
+                        </p>
                     </div>
 
-                    <Link
-                        href="/orders"
-                        class="text-xs font-black uppercase tracking-[0.2em] underline underline-offset-8"
-                    >
-                        My Orders
-                    </Link>
+                    <div class="flex flex-wrap items-center gap-6">
+                        <Link
+                            v-if="fromCheckout"
+                            href="/checkout"
+                            class="bg-neutral-950 px-8 py-4 text-xs font-black uppercase tracking-[0.22em] text-white transition hover:bg-neutral-800"
+                        >
+                            Back to Checkout
+                        </Link>
+
+                        <Link
+                            href="/orders"
+                            class="text-xs font-black uppercase tracking-[0.2em] underline underline-offset-8"
+                        >
+                            My Orders
+                        </Link>
+                    </div>
                 </div>
             </section>
 

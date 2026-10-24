@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Store;
 
+use App\Exceptions\ShippingException;
 use App\Http\Controllers\Controller;
 use App\Models\Address;
 use App\Models\Cart;
@@ -10,17 +11,26 @@ use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\ProductVariant;
 use App\Models\Shipment;
+use App\Services\BiteshipService;
+use App\Services\ShippingQuoteService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CheckoutController extends Controller
 {
+    public function __construct(
+        private readonly BiteshipService $biteship,
+        private readonly ShippingQuoteService $quotes,
+    ) {
+    }
+
     public function index(): Response|RedirectResponse
     {
         $cart = Cart::query()
@@ -79,8 +89,10 @@ class CheckoutController extends Controller
         })->values();
 
         $subtotal = $items->sum('subtotal');
-        $shippingCost = 15000;
-        $total = $subtotal + $shippingCost;
+
+        $totalWeight = (int) $cart->items->sum(
+            fn ($item) => (int) ($item->product?->weight ?? 0) * (int) $item->quantity
+        );
 
         $addresses = Address::query()
             ->where('user_id', Auth::id())
@@ -95,6 +107,8 @@ class CheckoutController extends Controller
                     'province' => $address->province,
                     'city' => $address->city,
                     'district' => $address->district,
+                    'area_id' => $address->area_id,
+                    'area_name' => $address->area_name,
                     'postal_code' => $address->postal_code,
                     'full_address' => $address->full_address,
                     'is_default' => $address->is_default,
@@ -108,9 +122,8 @@ class CheckoutController extends Controller
             'items' => $items,
             'summary' => [
                 'subtotal' => $subtotal,
-                'shipping_cost' => $shippingCost,
-                'total' => $total,
                 'total_items' => $items->sum('quantity'),
+                'total_weight' => $totalWeight,
             ],
             'addresses' => $addresses,
             'defaultAddress' => $defaultAddress,
@@ -119,29 +132,57 @@ class CheckoutController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $userId = Auth::id();
+        $userId = (int) Auth::id();
 
         $validated = $request->validate([
-            // Hanya menerima alamat milik user ini. ID yang tidak ada dan ID milik
-            // orang lain menghasilkan pesan yang sama, jadi ID alamat orang lain
-            // tidak bisa ditebak lewat respons.
             'address_id' => [
                 'nullable',
                 Rule::exists('addresses', 'id')->where('user_id', $userId),
             ],
-            'recipient_name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:20'],
-            'province' => ['required', 'string', 'max:255'],
-            'city' => ['required', 'string', 'max:255'],
-            'district' => ['required', 'string', 'max:255'],
-            'postal_code' => ['nullable', 'string', 'max:10'],
-            'full_address' => ['required', 'string', 'max:500'],
+            'recipient_name' => ['required_without:address_id', 'nullable', 'string', 'max:255'],
+            'phone' => ['required_without:address_id', 'nullable', 'string', 'max:20'],
+            'area_id' => ['required_without:address_id', 'nullable', 'string', 'max:64'],
+            'postal_code' => ['nullable', 'string', 'regex:/^\d{5}$/'],
+            'full_address' => ['required_without:address_id', 'nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:500'],
             'save_address' => ['nullable', 'boolean'],
+            'shipping_courier_code' => ['required', 'string', 'max:32'],
+            'shipping_service_code' => ['required', 'string', 'max:32'],
+            'agree_terms' => ['accepted'],
+        ], [
+            'agree_terms.accepted' => 'Setujui Syarat & Ketentuan untuk melanjutkan pesanan.',
         ]);
 
-        // Argumen kedua: transaksi diulang sampai 3 kali bila terjadi deadlock.
-        $result = DB::transaction(function () use ($validated, $userId) {
+        try {
+            $destination = $this->resolveDestination($validated, $userId);
+
+            $cart = Cart::query()
+                ->where('user_id', $userId)
+                ->first();
+
+            if (! $cart) {
+                return back()->with('error', 'Bag masih kosong.');
+            }
+
+            $quotes = $this->quotes->forCart($cart, $destination['area_id']);
+        } catch (ShippingException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        $option = collect($quotes)->first(
+            fn (array $quote) => $quote['courier_code'] === strtolower($validated['shipping_courier_code'])
+                && $quote['service_code'] === $validated['shipping_service_code']
+        );
+
+        if ($option === null) {
+            throw ValidationException::withMessages([
+                'shipping_option' => 'Pilihan pengiriman tidak tersedia lagi. Silakan pilih ulang.',
+            ]);
+        }
+
+        $signature = $this->cartSignature($cart->items);
+
+        $result = DB::transaction(function () use ($validated, $userId, $destination, $option, $signature) {
             $cart = Cart::query()
                 ->where('user_id', $userId)
                 ->lockForUpdate()
@@ -164,13 +205,17 @@ class CheckoutController extends Controller
                 ];
             }
 
+            if ($this->cartSignature($cart->items) !== $signature) {
+                return [
+                    'error' => 'Isi bag berubah. Silakan pilih ulang pengiriman.',
+                ];
+            }
+
             $variantIds = $cart->items
                 ->pluck('product_variant_id')
                 ->unique()
                 ->values();
 
-            // Urutan id yang konsisten supaya dua checkout bersamaan tidak saling
-            // mengunci dalam urutan berbeda (penyebab deadlock).
             $lockedVariants = ProductVariant::query()
                 ->with('product')
                 ->whereIn('id', $variantIds)
@@ -178,7 +223,6 @@ class CheckoutController extends Controller
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
-
 
             $requiredByVariant = $cart->items
                 ->groupBy('product_variant_id')
@@ -213,41 +257,53 @@ class CheckoutController extends Controller
                 return $unitPrice * $item->quantity;
             });
 
+            $shippingCost = (int) $option['shipping_cost'];
+            $insuranceFee = (int) $option['insurance_fee'];
+            $total = $subtotal + $shippingCost + $insuranceFee;
 
-            $shippingCost = 15000;
-            $total = $subtotal + $shippingCost;
+            $savedAddress = null;
 
-            if ($validated['save_address'] ?? false) {
+            if ($destination['address_id'] === null && ($validated['save_address'] ?? false)) {
                 $hasAddress = Address::query()
                     ->where('user_id', $userId)
                     ->exists();
 
-                Address::query()->create([
+                $savedAddress = Address::query()->create([
                     'user_id' => $userId,
-                    'recipient_name' => $validated['recipient_name'],
-                    'phone' => $validated['phone'],
-                    'province' => $validated['province'],
-                    'city' => $validated['city'],
-                    'district' => $validated['district'],
-                    'postal_code' => $validated['postal_code'] ?? null,
-                    'full_address' => $validated['full_address'],
+                    'recipient_name' => $destination['recipient_name'],
+                    'phone' => $destination['phone'],
+                    'province' => $destination['province'],
+                    'city' => $destination['city'],
+                    'district' => $destination['district'],
+                    'area_id' => $destination['area_id'],
+                    'area_name' => $destination['area_name'],
+                    'postal_code' => $destination['postal_code'],
+                    'full_address' => $destination['full_address'],
                     'is_default' => ! $hasAddress,
                 ]);
             }
 
             $order = Order::query()->create([
                 'user_id' => $userId,
+                'address_id' => $destination['address_id'] ?? $savedAddress?->id,
                 'order_code' => $this->generateOrderCode(),
-                'recipient_name' => $validated['recipient_name'],
-                'phone' => $validated['phone'],
-                'province' => $validated['province'],
-                'city' => $validated['city'],
-                'district' => $validated['district'],
-                'postal_code' => $validated['postal_code'] ?? null,
-                'full_address' => $validated['full_address'],
+                'recipient_name' => $destination['recipient_name'],
+                'phone' => $destination['phone'],
+                'province' => $destination['province'],
+                'city' => $destination['city'],
+                'district' => $destination['district'],
+                'area_id' => $destination['area_id'],
+                'postal_code' => $destination['postal_code'],
+                'full_address' => $destination['full_address'],
                 'notes' => $validated['notes'] ?? null,
                 'subtotal' => $subtotal,
                 'shipping_cost' => $shippingCost,
+                'shipping_insurance_fee' => $insuranceFee,
+                'shipping_courier_code' => $option['courier_code'],
+                'shipping_courier_name' => $option['courier_name'],
+                'shipping_service_code' => $option['service_code'],
+                'shipping_service_name' => $option['service_name'],
+                'shipping_duration' => $option['duration'] !== '' ? $option['duration'] : null,
                 'total' => $total,
                 'payment_status' => 'pending',
                 'order_status' => 'pending',
@@ -262,7 +318,6 @@ class CheckoutController extends Controller
 
                 OrderItem::query()->create([
                     'order_id' => $order->id,
-                    // Diambil dari varian terkunci, bukan dari baris keranjang.
                     'product_id' => $variant->product_id,
                     'product_variant_id' => $variant->id,
                     'product_name' => $product->name,
@@ -285,8 +340,9 @@ class CheckoutController extends Controller
 
             Shipment::query()->create([
                 'order_id' => $order->id,
-                'courier' => null,
-                'service' => null,
+                'courier' => $option['courier_name'],
+                'courier_code' => $option['courier_code'],
+                'service' => $option['service_name'],
                 'tracking_number' => null,
                 'status' => 'not_shipped',
             ]);
@@ -304,6 +360,67 @@ class CheckoutController extends Controller
 
         return redirect()->route('orders.show', $result['order']->order_code)
             ->with('success', 'Order berhasil dibuat. Silakan upload bukti pembayaran.');
+    }
+
+    private function resolveDestination(array $validated, int $userId): array
+    {
+        if (! empty($validated['address_id'])) {
+            $address = Address::query()
+                ->where('user_id', $userId)
+                ->findOrFail($validated['address_id']);
+
+            if (! $address->area_id) {
+                throw new ShippingException(
+                    'Alamat ini belum memiliki area pengiriman. Silakan perbarui alamat di halaman Alamat.',
+                    422
+                );
+            }
+
+            return [
+                'address_id' => $address->id,
+                'recipient_name' => $address->recipient_name,
+                'phone' => $address->phone,
+                'province' => $address->province,
+                'city' => $address->city,
+                'district' => $address->district,
+                'area_id' => $address->area_id,
+                'area_name' => $address->area_name,
+                'postal_code' => $address->postal_code,
+                'full_address' => $address->full_address,
+            ];
+        }
+
+        $area = $this->biteship->findKnownArea((string) $validated['area_id']);
+
+        if ($area === null) {
+            throw ValidationException::withMessages([
+                'area_id' => 'Area tidak valid atau pencarian sudah kedaluwarsa. Cari dan pilih ulang areanya.',
+            ]);
+        }
+
+        return [
+            'address_id' => null,
+            'recipient_name' => $validated['recipient_name'],
+            'phone' => $validated['phone'],
+            'province' => $area['province'],
+            'city' => $area['city'],
+            'district' => $area['district'],
+            'area_id' => $area['id'],
+            'area_name' => $area['name'],
+            'postal_code' => $validated['postal_code'] ?? $area['postal_code'],
+            'full_address' => $validated['full_address'],
+        ];
+    }
+
+    private function cartSignature(iterable $items): string
+    {
+        return sha1(
+            collect($items)
+                ->groupBy('product_variant_id')
+                ->map(fn ($group, $variantId) => $variantId . ':' . (int) $group->sum('quantity'))
+                ->sortKeys()
+                ->implode('|')
+        );
     }
 
     private function generateOrderCode(): string
