@@ -11,7 +11,6 @@ use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\ProductVariant;
 use App\Models\Shipment;
-use App\Services\BiteshipService;
 use App\Services\ShippingQuoteService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,7 +25,6 @@ use Inertia\Response;
 class CheckoutController extends Controller
 {
     public function __construct(
-        private readonly BiteshipService $biteship,
         private readonly ShippingQuoteService $quotes,
     ) {
     }
@@ -136,31 +134,29 @@ class CheckoutController extends Controller
 
         $validated = $request->validate([
             'address_id' => [
-                'nullable',
+                'required',
+                'integer',
                 Rule::exists('addresses', 'id')->where('user_id', $userId),
             ],
-            'recipient_name' => ['required_without:address_id', 'nullable', 'string', 'max:255'],
-            'phone' => ['required_without:address_id', 'nullable', 'string', 'max:20'],
-            'area_id' => ['required_without:address_id', 'nullable', 'string', 'max:64'],
-            'postal_code' => ['nullable', 'string', 'regex:/^\d{5}$/'],
-            'full_address' => ['required_without:address_id', 'nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:500'],
-            'save_address' => ['nullable', 'boolean'],
             'shipping_courier_code' => ['required', 'string', 'max:32'],
             'shipping_service_code' => ['required', 'string', 'max:32'],
             'agree_terms' => ['accepted'],
         ], [
+            'address_id.required' => 'Pilih alamat pengiriman untuk melanjutkan pesanan.',
+            'address_id.exists' => 'Alamat tidak ditemukan. Silakan pilih ulang alamat.',
             'agree_terms.accepted' => 'Setujui Syarat & Ketentuan untuk melanjutkan pesanan.',
         ]);
 
-        try {
-            $destination = $this->resolveDestination($validated, $userId);
+        $destination = $this->resolveDestination((int) $validated['address_id'], $userId);
 
+        try {
             $cart = Cart::query()
                 ->where('user_id', $userId)
+                ->with('items')
                 ->first();
 
-            if (! $cart) {
+            if (! $cart || $cart->items->isEmpty()) {
                 return back()->with('error', 'Bag masih kosong.');
             }
 
@@ -261,31 +257,9 @@ class CheckoutController extends Controller
             $insuranceFee = (int) $option['insurance_fee'];
             $total = $subtotal + $shippingCost + $insuranceFee;
 
-            $savedAddress = null;
-
-            if ($destination['address_id'] === null && ($validated['save_address'] ?? false)) {
-                $hasAddress = Address::query()
-                    ->where('user_id', $userId)
-                    ->exists();
-
-                $savedAddress = Address::query()->create([
-                    'user_id' => $userId,
-                    'recipient_name' => $destination['recipient_name'],
-                    'phone' => $destination['phone'],
-                    'province' => $destination['province'],
-                    'city' => $destination['city'],
-                    'district' => $destination['district'],
-                    'area_id' => $destination['area_id'],
-                    'area_name' => $destination['area_name'],
-                    'postal_code' => $destination['postal_code'],
-                    'full_address' => $destination['full_address'],
-                    'is_default' => ! $hasAddress,
-                ]);
-            }
-
             $order = Order::query()->create([
                 'user_id' => $userId,
-                'address_id' => $destination['address_id'] ?? $savedAddress?->id,
+                'address_id' => $destination['address_id'],
                 'order_code' => $this->generateOrderCode(),
                 'recipient_name' => $destination['recipient_name'],
                 'phone' => $destination['phone'],
@@ -362,53 +336,29 @@ class CheckoutController extends Controller
             ->with('success', 'Order berhasil dibuat. Silakan upload bukti pembayaran.');
     }
 
-    private function resolveDestination(array $validated, int $userId): array
+    private function resolveDestination(int $addressId, int $userId): array
     {
-        if (! empty($validated['address_id'])) {
-            $address = Address::query()
-                ->where('user_id', $userId)
-                ->findOrFail($validated['address_id']);
+        $address = Address::query()
+            ->where('user_id', $userId)
+            ->findOrFail($addressId);
 
-            if (! $address->area_id) {
-                throw new ShippingException(
-                    'Alamat ini belum memiliki area pengiriman. Silakan perbarui alamat di halaman Alamat.',
-                    422
-                );
-            }
-
-            return [
-                'address_id' => $address->id,
-                'recipient_name' => $address->recipient_name,
-                'phone' => $address->phone,
-                'province' => $address->province,
-                'city' => $address->city,
-                'district' => $address->district,
-                'area_id' => $address->area_id,
-                'area_name' => $address->area_name,
-                'postal_code' => $address->postal_code,
-                'full_address' => $address->full_address,
-            ];
-        }
-
-        $area = $this->biteship->findKnownArea((string) $validated['area_id']);
-
-        if ($area === null) {
+        if (! $address->area_id) {
             throw ValidationException::withMessages([
-                'area_id' => 'Area tidak valid atau pencarian sudah kedaluwarsa. Cari dan pilih ulang areanya.',
+                'address_id' => 'Alamat ini belum memiliki area pengiriman. Perbarui alamat dan pilih areanya.',
             ]);
         }
 
         return [
-            'address_id' => null,
-            'recipient_name' => $validated['recipient_name'],
-            'phone' => $validated['phone'],
-            'province' => $area['province'],
-            'city' => $area['city'],
-            'district' => $area['district'],
-            'area_id' => $area['id'],
-            'area_name' => $area['name'],
-            'postal_code' => $validated['postal_code'] ?? $area['postal_code'],
-            'full_address' => $validated['full_address'],
+            'address_id' => $address->id,
+            'recipient_name' => $address->recipient_name,
+            'phone' => $address->phone,
+            'province' => $address->province,
+            'city' => $address->city,
+            'district' => $address->district,
+            'area_id' => $address->area_id,
+            'area_name' => $address->area_name,
+            'postal_code' => $address->postal_code,
+            'full_address' => $address->full_address,
         ];
     }
 
