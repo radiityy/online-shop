@@ -8,8 +8,10 @@ use App\Models\Address;
 use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Payment;
 use App\Models\ProductVariant;
 use App\Models\Shipment;
+use App\Services\MidtransService;
 use App\Services\ShippingQuoteService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,11 +22,13 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use RuntimeException;
 
 class CheckoutController extends Controller
 {
     public function __construct(
         private readonly ShippingQuoteService $quotes,
+        private readonly MidtransService $midtrans,
     ) {
     }
 
@@ -124,6 +128,7 @@ class CheckoutController extends Controller
             ],
             'addresses' => $addresses,
             'defaultAddress' => $defaultAddress,
+            'paymentMethods' => $this->paymentMethods(),
         ]);
     }
 
@@ -140,12 +145,17 @@ class CheckoutController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
             'shipping_courier_code' => ['required', 'string', 'max:32'],
             'shipping_service_code' => ['required', 'string', 'max:32'],
+            'payment_method' => ['required', 'string', Rule::in(array_keys($this->midtrans->methods()))],
             'agree_terms' => ['accepted'],
         ], [
             'address_id.required' => 'Pilih alamat pengiriman untuk melanjutkan pesanan.',
             'address_id.exists' => 'Alamat tidak ditemukan. Silakan pilih ulang alamat.',
+            'payment_method.required' => 'Pilih metode pembayaran untuk melanjutkan pesanan.',
+            'payment_method.in' => 'Metode pembayaran tidak tersedia. Silakan pilih ulang.',
             'agree_terms.accepted' => 'Setujui Syarat & Ketentuan untuk melanjutkan pesanan.',
         ]);
+
+        $methodKey = $validated['payment_method'];
 
         $destination = $this->resolveDestination((int) $validated['address_id'], $userId);
 
@@ -177,7 +187,7 @@ class CheckoutController extends Controller
 
         $signature = $this->cartSignature($cart->items);
 
-        $result = DB::transaction(function () use ($validated, $userId, $destination, $option, $signature) {
+        $result = DB::transaction(function () use ($validated, $userId, $destination, $option, $signature, $methodKey) {
             $cart = Cart::query()
                 ->where('user_id', $userId)
                 ->lockForUpdate()
@@ -254,7 +264,9 @@ class CheckoutController extends Controller
 
             $shippingCost = (int) $option['shipping_cost'];
             $insuranceFee = (int) $option['insurance_fee'];
-            $total = $subtotal + $shippingCost + $insuranceFee;
+            $totalBeforeFee = $subtotal + $shippingCost + $insuranceFee;
+            $paymentFee = $this->midtrans->feeFor($methodKey, (int) round($totalBeforeFee));
+            $total = $totalBeforeFee + $paymentFee;
 
             $order = Order::query()->create([
                 'user_id' => $userId,
@@ -272,6 +284,7 @@ class CheckoutController extends Controller
                 'subtotal' => $subtotal,
                 'shipping_cost' => $shippingCost,
                 'shipping_insurance_fee' => $insuranceFee,
+                'payment_fee' => $paymentFee,
                 'shipping_courier_code' => $option['courier_code'],
                 'shipping_courier_name' => $option['courier_name'],
                 'shipping_service_code' => $option['service_code'],
@@ -318,6 +331,7 @@ class CheckoutController extends Controller
 
             return [
                 'order' => $order,
+                'total_before_fee' => $totalBeforeFee,
             ];
         }, 3);
 
@@ -325,8 +339,90 @@ class CheckoutController extends Controller
             return back()->with('error', $result['error']);
         }
 
-        return redirect()->route('orders.show', $result['order']->order_code)
-                        ->with('success', 'Order berhasil dibuat. Pilih metode pembayaran dan selesaikan dalam 1 jam.');
+        $order = $result['order'];
+
+        try {
+            $this->createGatewayPayment($order, $methodKey, $request->user()?->email);
+        } catch (RuntimeException $exception) {
+            $order->update([
+                'payment_fee' => 0,
+                'total' => $result['total_before_fee'],
+            ]);
+
+            return redirect()->route('orders.show', $order->order_code)
+                ->with('error', 'Pesanan sudah dibuat, tetapi pembayaran belum bisa disiapkan. ' . $exception->getMessage() . ' Silakan pilih ulang metode pembayaran.');
+        }
+
+        return redirect()->route('orders.show', $order->order_code)
+            ->with('success', 'Order berhasil dibuat. Selesaikan pembayaran sebelum waktu habis.');
+    }
+
+    private function createGatewayPayment(Order $order, string $methodKey, ?string $email): void
+    {
+        $method = $this->midtrans->method($methodKey);
+
+        if (! $method) {
+            throw new RuntimeException('Metode pembayaran tidak tersedia.');
+        }
+
+        $gatewayOrderId = $order->order_code . '-1';
+        $amount = (int) round((float) $order->total);
+        $fee = (int) round((float) $order->payment_fee);
+        $minutes = max(1, (int) floor(now()->diffInMinutes($order->payment_expires_at, false)));
+
+        $charge = $this->midtrans->charge(
+            $methodKey,
+            $gatewayOrderId,
+            $amount,
+            [
+                'name' => $order->recipient_name,
+                'email' => $email,
+                'phone' => $order->phone,
+            ],
+            route('orders.show', $order->order_code),
+            $minutes,
+        );
+
+        Payment::query()->create([
+            'order_id' => $order->id,
+            'payment_method' => $methodKey,
+            'gateway' => 'midtrans',
+            'payment_type' => $method['payment_type'],
+            'bank' => $method['bank'],
+            'gateway_order_id' => $gatewayOrderId,
+            'transaction_id' => $charge['transaction_id'],
+            'va_number' => $charge['va_number'],
+            'qr_string' => $charge['qr_string'],
+            'qr_url' => $charge['qr_url'],
+            'deeplink_url' => $charge['deeplink_url'],
+            'amount' => $amount,
+            'fee' => $fee,
+            'status' => Payment::STATUS_PENDING,
+            'gateway_status' => $charge['gateway_status'],
+            'fraud_status' => $charge['fraud_status'],
+            'expires_at' => $order->payment_expires_at,
+            'raw_response' => $charge['raw'],
+        ]);
+    }
+
+    private function paymentMethods(): array
+    {
+        return collect($this->midtrans->methods())
+            ->map(function (array $method, string $key) {
+                return [
+                    'key' => $key,
+                    'label' => $method['label'],
+                    'payment_type' => $method['payment_type'],
+                    'bank' => $method['bank'],
+                    'group' => in_array($method['payment_type'], ['bank_transfer', 'permata'], true)
+                        ? 'virtual_account'
+                        : 'other',
+                    'fee_flat' => (int) $method['fee_flat'],
+                    'fee_percent' => (float) $method['fee_percent'],
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function resolveDestination(int $addressId, int $userId): array

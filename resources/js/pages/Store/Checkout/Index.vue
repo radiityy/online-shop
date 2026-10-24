@@ -3,6 +3,8 @@ import { Link, useForm } from '@inertiajs/vue3';
 import AddressPicker from '@/components/AddressPicker.vue';
 import CourierLogo from '@/components/CourierLogo.vue';
 import CourierPicker from '@/components/CourierPicker.vue';
+import PaymentLogo from '@/components/PaymentLogo.vue';
+import PaymentPicker from '@/components/PaymentPicker.vue';
 import CheckoutLayout from '@/layouts/CheckoutLayout.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -54,11 +56,22 @@ type ShippingOption = {
     total: number;
 };
 
+type PaymentMethod = {
+    key: string;
+    label: string;
+    payment_type: string;
+    bank: string | null;
+    group: 'virtual_account' | 'other';
+    fee_flat: number;
+    fee_percent: number;
+};
+
 type CheckoutForm = {
     address_id: number | null;
     notes: string;
     shipping_courier_code: string;
     shipping_service_code: string;
+    payment_method: string;
     agree_terms: boolean;
 };
 
@@ -71,11 +84,14 @@ const props = defineProps<{
     };
     addresses: Address[];
     defaultAddress: Address | null;
+    paymentMethods: PaymentMethod[];
 }>();
 
 const isPickerOpen = ref(false);
 const isCourierOpen = ref(false);
+const isPaymentOpen = ref(false);
 const pickedAddress = ref<Address | null>(null);
+const selectedPaymentKey = ref<string | null>(null);
 
 const address = computed<Address | null>(() => {
     const picked = pickedAddress.value;
@@ -106,6 +122,7 @@ const form = useForm<CheckoutForm>({
     notes: '',
     shipping_courier_code: '',
     shipping_service_code: '',
+    payment_method: '',
     agree_terms: false,
 });
 
@@ -189,13 +206,37 @@ const shippingCost = computed(() => selectedOption.value?.shipping_cost ?? null)
 
 const insuranceFee = computed(() => selectedOption.value?.insurance_fee ?? 0);
 
-const grandTotal = computed(() => {
+const baseAmount = computed(() => {
     if (!selectedOption.value) {
         return props.summary.subtotal;
     }
 
     return props.summary.subtotal + selectedOption.value.shipping_cost + selectedOption.value.insurance_fee;
 });
+
+const calcFee = (method: PaymentMethod, amount: number) => {
+    return method.fee_flat + Math.ceil((Math.round(amount) * method.fee_percent) / 100);
+};
+
+const fees = computed<Record<string, number>>(() => {
+    const result: Record<string, number> = {};
+
+    props.paymentMethods.forEach((method) => {
+        result[method.key] = calcFee(method, baseAmount.value);
+    });
+
+    return result;
+});
+
+const selectedPayment = computed(() => {
+    return props.paymentMethods.find((method) => method.key === selectedPaymentKey.value) ?? null;
+});
+
+const paymentFee = computed(() => {
+    return selectedPayment.value ? (fees.value[selectedPayment.value.key] ?? 0) : 0;
+});
+
+const grandTotal = computed(() => baseAmount.value + paymentFee.value);
 
 const weightLabel = computed(() => {
     return (props.summary.total_weight / 1000).toFixed(1).replace(/\.0$/, '');
@@ -210,6 +251,7 @@ const shippingError = computed(() => {
 const canSubmit = computed(() => {
     return addressUsable.value
         && selectedOption.value !== null
+        && selectedPayment.value !== null
         && form.agree_terms
         && !form.processing
         && !isLoadingRates.value;
@@ -252,6 +294,12 @@ const selectOption = (option: ShippingOption) => {
     form.shipping_courier_code = option.courier_code;
     form.shipping_service_code = option.service_code;
     form.clearErrors('shipping_courier_code', 'shipping_service_code');
+};
+
+const selectPayment = (key: string) => {
+    selectedPaymentKey.value = key;
+    form.payment_method = key;
+    form.clearErrors('payment_method');
 };
 
 const fetchRates = async (addressId: number) => {
@@ -327,6 +375,10 @@ const openCourierPicker = () => {
     }
 };
 
+const openPaymentPicker = () => {
+    isPaymentOpen.value = true;
+};
+
 const onPickAddress = (item: Address) => {
     pickedAddress.value = item;
 };
@@ -363,6 +415,10 @@ const submitOrder = () => {
 };
 
 onMounted(() => {
+    if (props.addresses.length === 0) {
+        isPickerOpen.value = true;
+    }
+
     if (address.value?.area_id) {
         fetchRates(address.value.id);
     }
@@ -388,7 +444,7 @@ onBeforeUnmount(() => {
                         </h1>
 
                         <p class="mt-4 max-w-xl text-sm leading-7 text-neutral-600 md:text-base">
-                            Confirm your delivery address, pick a shipping method, and place your NEVERENDING order.
+                            Confirm your delivery address, pick shipping and payment, and place your NEVERENDING order.
                         </p>
                     </div>
 
@@ -584,12 +640,96 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="mt-12">
+                        <div class="flex items-center justify-between gap-4">
+                            <h2 class="text-xl font-black uppercase tracking-[-0.03em]">
+                                Payment Method
+                            </h2>
+
+                            <button
+                                v-if="selectedPayment"
+                                type="button"
+                                class="text-xs font-black uppercase tracking-[0.18em] underline underline-offset-4 transition hover:opacity-60"
+                                @click="openPaymentPicker"
+                            >
+                                Change
+                            </button>
+                        </div>
+
+                        <p
+                            v-if="!paymentMethods.length"
+                            class="mt-4 border border-dashed border-neutral-300 px-5 py-5 text-sm text-neutral-500"
+                        >
+                            No payment method is available right now. Please try again later.
+                        </p>
+
+                        <button
+                            v-else-if="selectedPayment"
+                            type="button"
+                            class="mt-4 flex min-h-[5rem] w-full items-center gap-4 border border-neutral-200 px-5 py-4 text-left transition hover:border-neutral-950"
+                            @click="openPaymentPicker"
+                        >
+                            <PaymentLogo
+                                :method-key="selectedPayment.key"
+                                :label="selectedPayment.label"
+                            />
+
+                            <div class="min-w-0 flex-1">
+                                <p class="font-black uppercase tracking-[-0.02em]">
+                                    {{ selectedPayment.label }}
+                                </p>
+
+                                <p class="mt-1 text-sm text-neutral-500">
+                                    {{ paymentFee > 0 ? `Payment fee ${formatPrice(paymentFee)}` : 'No payment fee' }}
+                                </p>
+                            </div>
+
+                            <svg
+                                class="h-4 w-4 shrink-0"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </button>
+
+                        <button
+                            v-else
+                            type="button"
+                            class="mt-4 w-full border border-dashed border-neutral-300 px-5 py-6 text-left transition hover:border-neutral-950"
+                            @click="openPaymentPicker"
+                        >
+                            <span class="block text-xs font-black uppercase tracking-[0.22em] text-neutral-950">
+                                Select Payment Method
+                            </span>
+
+                            <span class="mt-1 block text-sm text-neutral-500">
+                                Choose how you want to pay for this order.
+                            </span>
+                        </button>
+
+                        <p
+                            v-if="form.errors.payment_method"
+                            class="mt-3 text-sm text-red-600"
+                        >
+                            {{ form.errors.payment_method }}
+                        </p>
+                    </div>
+
+                    <div class="mt-12">
+                        <h2 class="text-xl font-black uppercase tracking-[-0.03em]">
+                            <span class="mr-3 text-neutral-400">4</span>Notes &amp; Confirmation
+                        </h2>
+
                         <label
                             for="checkout-notes"
-                            class="text-xl font-black uppercase tracking-[-0.03em]"
+                            class="mt-4 block text-xs font-black uppercase tracking-[0.18em] text-neutral-500"
                         >
                             Message for Delivery
-                            <span class="text-xs font-bold normal-case tracking-normal text-neutral-500">(Optional)</span>
+                            <span class="font-bold normal-case tracking-normal">(Optional)</span>
                         </label>
 
                         <textarea
@@ -597,7 +737,7 @@ onBeforeUnmount(() => {
                             v-model="form.notes"
                             rows="2"
                             maxlength="500"
-                            class="mt-4 w-full resize-none border-0 border-b border-neutral-300 bg-transparent px-0 py-3 text-sm outline-none ring-0 transition placeholder:text-neutral-400 focus:border-neutral-950 focus:ring-0"
+                            class="w-full resize-none border-0 border-b border-neutral-300 bg-transparent px-0 py-3 text-sm outline-none ring-0 transition placeholder:text-neutral-400 focus:border-neutral-950 focus:ring-0"
                             placeholder="Optional message for the courier..."
                         ></textarea>
 
@@ -741,6 +881,22 @@ onBeforeUnmount(() => {
                             <span class="text-neutral-500">Shipment Insurance Fee</span>
                             <span class="font-black">{{ formatPrice(insuranceFee) }}</span>
                         </div>
+
+                        <div class="flex justify-between">
+                            <span class="text-neutral-500">Payment Fee</span>
+                            <span
+                                v-if="selectedPayment"
+                                class="font-black"
+                            >
+                                {{ formatPrice(paymentFee) }}
+                            </span>
+                            <span
+                                v-else
+                                class="text-neutral-400"
+                            >
+                                -
+                            </span>
+                        </div>
                     </div>
 
                     <div class="mt-6 flex justify-between text-xl">
@@ -755,16 +911,16 @@ onBeforeUnmount(() => {
 
                     <div class="mt-6 bg-white p-5 text-sm leading-7 text-neutral-600">
                         <p class="font-black uppercase tracking-[0.18em] text-neutral-950">
-                            Manual Transfer
+                            Payment Time Limit
                         </p>
 
                         <p class="mt-2">
-                            Payment proof can be uploaded after your order has been created.
+                            Payment instructions appear right after you place your order. Complete payment before the time limit ends, or the order expires.
                         </p>
                     </div>
 
                     <div class="mt-6 grid gap-3 border-t border-neutral-200 pt-6 text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">
-                        <p>Manual transfer payment</p>
+                        <p>Secure online payment</p>
                         <p>Daily wear for endless rotation</p>
                     </div>
                 </aside>
@@ -786,6 +942,15 @@ onBeforeUnmount(() => {
             :labels="optionLabels"
             @close="isCourierOpen = false"
             @select="selectOption"
+        />
+
+        <PaymentPicker
+            :open="isPaymentOpen"
+            :methods="paymentMethods"
+            :selected-key="selectedPaymentKey"
+            :fees="fees"
+            @close="isPaymentOpen = false"
+            @select="selectPayment"
         />
     </CheckoutLayout>
 </template>
