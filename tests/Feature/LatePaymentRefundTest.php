@@ -160,6 +160,93 @@ class LatePaymentRefundTest extends TestCase
         $this->assertSame(2, (int) $cart->items()->sum('quantity'));
     }
 
+    public function test_marking_a_refund_manually_closes_a_refund_required_order_without_returning_stock_twice(): void
+    {
+        ['order' => $order, 'payment' => $payment, 'variant' => $variant] = $this->createPendingOrder();
+
+        $order->update(['order_status' => 'cancelled']);
+
+        $this->settle($payment);
+
+        $this->assertTrue(app(PaymentSettlementService::class)->markRefundedManually($order));
+
+        $order->refresh();
+
+        $this->assertSame(Payment::STATUS_REFUNDED, $payment->fresh()->status);
+        $this->assertSame('refunded', $order->payment_status);
+        $this->assertSame('cancelled', $order->order_status);
+        $this->assertSame(10, $variant->fresh()->stock);
+    }
+
+    public function test_marking_a_refund_manually_for_a_duplicate_payment_keeps_the_paid_order_paid(): void
+    {
+        ['order' => $order, 'payment' => $first, 'variant' => $variant] = $this->createPendingOrder();
+
+        $this->settle($first);
+
+        $second = $this->createPayment($order, 'qris', 2);
+
+        $this->settle($second);
+
+        $this->assertTrue(app(PaymentSettlementService::class)->markRefundedManually($order));
+
+        $order->refresh();
+
+        $this->assertSame(Payment::STATUS_PAID, $first->fresh()->status);
+        $this->assertSame(Payment::STATUS_REFUNDED, $second->fresh()->status);
+        $this->assertSame('paid', $order->payment_status);
+        $this->assertSame('processing', $order->order_status);
+        $this->assertSame(8, $variant->fresh()->stock);
+    }
+
+    public function test_marking_a_refund_manually_twice_changes_nothing_the_second_time(): void
+    {
+        ['order' => $order, 'payment' => $payment, 'variant' => $variant] = $this->createPendingOrder();
+
+        $order->update(['order_status' => 'cancelled']);
+
+        $this->settle($payment);
+
+        $service = app(PaymentSettlementService::class);
+
+        $this->assertTrue($service->markRefundedManually($order));
+        $this->assertFalse($service->markRefundedManually($order));
+
+        $this->assertSame(Payment::STATUS_REFUNDED, $payment->fresh()->status);
+        $this->assertSame('refunded', $order->fresh()->payment_status);
+        $this->assertSame(10, $variant->fresh()->stock);
+    }
+
+    public function test_marking_a_refund_manually_does_nothing_when_no_refund_is_needed(): void
+    {
+        ['order' => $order, 'payment' => $payment, 'variant' => $variant] = $this->createPendingOrder();
+
+        $this->assertFalse(app(PaymentSettlementService::class)->markRefundedManually($order));
+
+        $this->assertSame(Payment::STATUS_PENDING, $payment->fresh()->status);
+        $this->assertSame('pending', $order->fresh()->payment_status);
+        $this->assertSame(8, $variant->fresh()->stock);
+    }
+
+    public function test_marking_a_refund_manually_releases_stock_that_was_still_held(): void
+    {
+        ['order' => $order, 'payment' => $payment, 'variant' => $variant] = $this->createPendingOrder();
+
+        // Admin mengubah status lewat form tanpa stok terlepas: refund_required tidak melepas stok.
+        $order->update(['payment_status' => 'refund_required']);
+
+        $this->assertFalse($order->fresh()->stock_released);
+        $this->assertSame(8, $variant->fresh()->stock);
+
+        $this->assertTrue(app(PaymentSettlementService::class)->markRefundedManually($order));
+
+        $order->refresh();
+
+        $this->assertSame('refunded', $order->payment_status);
+        $this->assertTrue($order->stock_released);
+        $this->assertSame(10, $variant->fresh()->stock);
+    }
+
     private function settle(Payment $payment, string $transactionStatus = 'settlement'): Payment
     {
         $body = $this->midtransStatusBody($payment, $transactionStatus);

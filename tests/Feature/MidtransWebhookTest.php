@@ -158,7 +158,7 @@ class MidtransWebhookTest extends TestCase
             && $request->body() === '');
     }
 
-    public function test_a_late_payment_does_not_reactivate_a_cancelled_order(): void
+    public function test_a_late_payment_for_a_cancelled_order_is_flagged_for_refund_and_does_not_reactivate_it(): void
     {
         Log::spy();
 
@@ -172,9 +172,12 @@ class MidtransWebhookTest extends TestCase
 
         $order->refresh();
 
+        $payment->refresh();
+
         $this->assertSame('cancelled', $order->order_status);
-        $this->assertNotSame('paid', $order->payment_status);
-        $this->assertSame(Payment::STATUS_PAID, $payment->fresh()->status);
+        $this->assertSame('refund_required', $order->payment_status);
+        $this->assertSame(Payment::STATUS_REFUND_REQUIRED, $payment->status);
+        $this->assertNotNull($payment->paid_at);
         $this->assertSame(10, $variant->fresh()->stock);
 
         Log::shouldHaveReceived('critical')->once();

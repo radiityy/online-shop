@@ -5,14 +5,17 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Payment;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 class PaymentSettlementService
 {
     public function __construct(
         private readonly MidtransService $midtrans,
+        private readonly OrderNotificationService $notifications,
     ) {
     }
 
@@ -36,12 +39,14 @@ class PaymentSettlementService
             $data['fraud_status'] ?? null,
         );
 
-        return DB::transaction(function () use ($payment, $data, $raw, $status) {
+        $after = [];
+
+        $result = DB::transaction(function () use ($payment, $data, $raw, $status, &$after) {
             $order = Order::query()->whereKey($payment->order_id)->lockForUpdate()->firstOrFail();
             $payment = Payment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
 
-            // Payment yang sudah paid atau sudah ditandai refund_required tidak boleh
-            // diubah lagi oleh notifikasi apa pun selain refund.
+            $previous = $payment->status;
+
             if (
                 in_array($payment->status, [Payment::STATUS_PAID, Payment::STATUS_REFUND_REQUIRED], true)
                 && $status !== Payment::STATUS_REFUNDED
@@ -76,9 +81,13 @@ class PaymentSettlementService
             $isLatest = (int) $payment->id === $latestId;
 
             if ($status === Payment::STATUS_PAID) {
-                $this->markOrderPaid($order, $payment, $isLatest);
+                $this->markOrderPaid($order, $payment, $isLatest, $after);
             } elseif ($status === Payment::STATUS_REFUNDED) {
                 $this->markOrderRefunded($order, $payment);
+
+                if ($previous !== Payment::STATUS_REFUNDED) {
+                    $after[] = fn () => $this->notifications->notifyRefunded($order, $payment);
+                }
             } elseif (
                 $status === Payment::STATUS_EXPIRED
                 && $isLatest
@@ -87,25 +96,83 @@ class PaymentSettlementService
                 && $order->payment_expires_at->isPast()
             ) {
                 $order->update(['payment_status' => 'expired']);
+
+                $after[] = fn () => $this->notifications->notifyPaymentExpired($order);
             }
 
             return $payment;
         });
+
+        $this->send($after);
+
+        return $result;
     }
 
-    private function markOrderPaid(Order $order, Payment $payment, bool $isLatest): void
+    public function markRefundedManually(Order $order): bool
     {
-        // Order sudah dibayar oleh payment lain: uang ini kelebihan.
-        // Order tetap paid, hanya payment ini yang perlu direfund.
+        $refunded = DB::transaction(function () use ($order): ?array {
+            $locked = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+            $payments = Payment::query()
+                ->where('order_id', $locked->id)
+                ->where('status', Payment::STATUS_REFUND_REQUIRED)
+                ->lockForUpdate()
+                ->get();
+
+            $orderNeedsRefund = $locked->payment_status === 'refund_required';
+
+            if ($payments->isEmpty() && ! $orderNeedsRefund) {
+                return null;
+            }
+
+            foreach ($payments as $payment) {
+                $payment->forceFill(['status' => Payment::STATUS_REFUNDED])->save();
+            }
+
+            if ($orderNeedsRefund) {
+                $locked->forceFill(['payment_status' => 'refunded'])->saveQuietly();
+
+                $locked->releaseReservedStockIfNeeded();
+            }
+
+            Log::info('Refund manual ditandai selesai', [
+                'order_code' => $locked->order_code,
+                'payment_ids' => $payments->pluck('id')->all(),
+                'amount' => $payments->sum(fn (Payment $payment) => (float) $payment->amount),
+                'admin_id' => Auth::id(),
+            ]);
+
+            $targets = $payments->isNotEmpty()
+                ? $payments->all()
+                : array_filter([Payment::query()->where('order_id', $locked->id)->orderByDesc('id')->first()]);
+
+            return [$locked, $targets];
+        });
+
+        if ($refunded === null) {
+            return false;
+        }
+
+        [$locked, $targets] = $refunded;
+
+        $this->send(array_map(
+            fn (Payment $payment) => fn () => $this->notifications->notifyRefunded($locked, $payment),
+            $targets,
+        ));
+
+        return true;
+    }
+
+    private function markOrderPaid(Order $order, Payment $payment, bool $isLatest, array &$after): void
+    {
         if ($order->payment_status === 'paid') {
-            $this->flagForRefund($order, $payment, 'duplicate_payment', false);
+            $this->flagForRefund($order, $payment, 'duplicate_payment', false, $after);
 
             return;
         }
 
-        // Order sudah ditutup (dibatalkan, kedaluwarsa, gagal): tidak diaktifkan lagi.
         if ($order->stock_released || $order->order_status === 'cancelled') {
-            $this->flagForRefund($order, $payment, 'closed_order', true);
+            $this->flagForRefund($order, $payment, 'closed_order', true, $after);
 
             return;
         }
@@ -114,6 +181,8 @@ class PaymentSettlementService
             'payment_status' => 'paid',
             'order_status' => $order->order_status === 'pending' ? 'processing' : $order->order_status,
         ]);
+
+        $after[] = fn () => $this->notifications->notifyPaymentConfirmed($order);
 
         if ($isLatest) {
             return;
@@ -136,14 +205,7 @@ class PaymentSettlementService
         }
     }
 
-    /**
-     * Menandai payment ini perlu direfund.
-     *
-     * Order hanya ikut ditandai kalau order itu memang sudah ditutup. Ditulis dengan
-     * saveQuietly() agar Order::syncRelatedStatuses() tidak menimpa status payment lain
-     * dan hook updating tidak terpicu (stok sudah dilepas sebelumnya).
-     */
-    private function flagForRefund(Order $order, Payment $payment, string $reason, bool $markOrder): void
+    private function flagForRefund(Order $order, Payment $payment, string $reason, bool $markOrder, array &$after): void
     {
         $payment->forceFill(['status' => Payment::STATUS_REFUND_REQUIRED])->save();
 
@@ -157,13 +219,14 @@ class PaymentSettlementService
             'gateway_order_id' => $payment->gateway_order_id,
             'amount' => $payment->amount,
         ]);
+
+        $after[] = fn () => $this->notifications->notifyRefundRequired(
+            $order,
+            $payment,
+            $reason === 'duplicate_payment',
+        );
     }
 
-    /**
-     * Notifikasi refund hanya mengubah order kalau payment yang direfund memang
-     * yang menahan status order. Refund atas pembayaran ganda tidak boleh
-     * membuat order yang sah ikut jadi refunded.
-     */
     private function markOrderRefunded(Order $order, Payment $payment): void
     {
         $others = Payment::query()
@@ -186,6 +249,17 @@ class PaymentSettlementService
             }
 
             $order->update(['payment_status' => 'refunded']);
+        }
+    }
+
+    private function send(array $notifications): void
+    {
+        foreach ($notifications as $notification) {
+            try {
+                $notification();
+            } catch (Throwable $exception) {
+                report($exception);
+            }
         }
     }
 }

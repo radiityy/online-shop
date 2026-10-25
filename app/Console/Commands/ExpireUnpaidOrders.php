@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Order;
 use App\Services\MidtransService;
+use App\Services\OrderNotificationService;
 use App\Services\PaymentSettlementService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -16,8 +17,11 @@ class ExpireUnpaidOrders extends Command
 
     protected $description = 'Menutup order yang melewati batas bayar dan melepas stoknya';
 
-    public function handle(MidtransService $midtrans, PaymentSettlementService $settlement): int
-    {
+    public function handle(
+        MidtransService $midtrans,
+        PaymentSettlementService $settlement,
+        OrderNotificationService $notifications,
+    ): int {
         $expired = 0;
 
         Order::query()
@@ -27,10 +31,10 @@ class ExpireUnpaidOrders extends Command
             ->where('stock_released', false)
             ->where('order_status', '!=', 'cancelled')
             ->orderBy('id')
-            ->chunkById(50, function ($orders) use ($midtrans, $settlement, &$expired) {
+            ->chunkById(50, function ($orders) use ($midtrans, $settlement, $notifications, &$expired) {
                 foreach ($orders as $order) {
                     try {
-                        if ($this->expire($order, $midtrans, $settlement)) {
+                        if ($this->expire($order, $midtrans, $settlement, $notifications)) {
                             $expired++;
                         }
                     } catch (Throwable $exception) {
@@ -44,8 +48,12 @@ class ExpireUnpaidOrders extends Command
         return self::SUCCESS;
     }
 
-    private function expire(Order $order, MidtransService $midtrans, PaymentSettlementService $settlement): bool
-    {
+    private function expire(
+        Order $order,
+        MidtransService $midtrans,
+        PaymentSettlementService $settlement,
+        OrderNotificationService $notifications,
+    ): bool {
         $latest = $order->payments()->first();
 
         if ($latest && $latest->gateway && $latest->isPending() && $midtrans->isConfigured()) {
@@ -66,7 +74,7 @@ class ExpireUnpaidOrders extends Command
             }
         }
 
-        return DB::transaction(function () use ($order) {
+        $closed = DB::transaction(function () use ($order) {
             $locked = Order::query()->whereKey($order->id)->lockForUpdate()->first();
 
             if (! $locked || $locked->payment_status !== 'pending' || $locked->stock_released) {
@@ -77,5 +85,15 @@ class ExpireUnpaidOrders extends Command
 
             return true;
         });
+
+        if ($closed) {
+            try {
+                $notifications->notifyPaymentExpired($order);
+            } catch (Throwable $exception) {
+                report($exception);
+            }
+        }
+
+        return $closed;
     }
 }
