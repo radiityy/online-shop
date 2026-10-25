@@ -117,18 +117,7 @@ const props = defineProps<{
     serverNow: string;
 }>();
 
-/* ------------------------------------------------------------------ */
-/* Format                                                              */
-/* ------------------------------------------------------------------ */
-
 const TIME_ZONE = 'Asia/Jakarta';
-
-// Tujuan tautan bantuan. Halaman /contact dan /terms belum ada, ganti di sini kalau alamatnya lain.
-const HELP_LINKS = {
-    contact: '/contact',
-    faq: '/faq',
-    terms: '/terms',
-};
 
 const dateTimeFormat = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
@@ -169,10 +158,6 @@ const sizeLabel = (item: OrderItem) => {
     return item.sku ?? 'Default';
 };
 
-/* ------------------------------------------------------------------ */
-/* Waktu bayar                                                         */
-/* ------------------------------------------------------------------ */
-
 const clockOffset = new Date(props.serverNow).getTime() - Date.now();
 const now = ref(Date.now() + clockOffset);
 
@@ -207,12 +192,7 @@ const countdown = computed(() => {
 const urgent = computed(() => remainingSeconds.value > 0 && remainingSeconds.value <= 600);
 const critical = computed(() => remainingSeconds.value > 0 && remainingSeconds.value <= 60);
 
-// Server menolak metode baru bila sisa waktu <= 2 menit, jadi tombolnya ikut disembunyikan.
 const canChangeMethod = computed(() => remainingSeconds.value > 125);
-
-/* ------------------------------------------------------------------ */
-/* Status tampilan                                                     */
-/* ------------------------------------------------------------------ */
 
 const gatewayPayment = computed(() => (props.order.payment?.gateway ? props.order.payment : null));
 
@@ -226,6 +206,22 @@ const isPaid = computed(() => props.order.payment_status === 'paid');
 
 const closedInfo = computed<{ title: string; description: string } | null>(() => {
     const order = props.order;
+
+    if (order.payment_status === 'refund_required') {
+        return {
+            title: 'Refund in progress',
+            description:
+                'We received your payment after this order was closed, so it could not be processed. Your money will be returned to you, and we will notify you when the refund is complete. You can place a new order anytime.',
+        };
+    }
+
+    if (order.payment_status === 'refunded') {
+        return {
+            title: 'Payment refunded',
+            description:
+                'Your payment has been refunded. Depending on your bank or e-wallet, it may take a little while to appear in your account.',
+        };
+    }
 
     if (order.payment_status === 'failed') {
         return {
@@ -241,13 +237,6 @@ const closedInfo = computed<{ title: string; description: string } | null>(() =>
         };
     }
 
-    if (order.payment_status === 'refunded') {
-        return {
-            title: 'Payment refunded',
-            description: 'Your payment has been refunded. Please contact us if you need more information.',
-        };
-    }
-
     if (order.order_status === 'cancelled') {
         return {
             title: 'Order cancelled',
@@ -258,7 +247,7 @@ const closedInfo = computed<{ title: string; description: string } | null>(() =>
     if (order.shipping_status === 'returned') {
         return {
             title: 'Order returned',
-            description: 'This order was returned during delivery. Please contact us for more information.',
+            description: 'This package was returned to us during delivery, so it will not reach you. Any further update will appear on this page.',
         };
     }
 
@@ -296,10 +285,6 @@ const canCancel = computed(() => mode.value === 'awaiting' && props.order.shippi
 
 const showStickyBar = computed(() => mode.value === 'awaiting' && activePayment.value !== null);
 
-/* ------------------------------------------------------------------ */
-/* Progres order                                                       */
-/* ------------------------------------------------------------------ */
-
 const stages = computed(() => {
     const order = props.order;
     const paid = order.payment_status === 'paid';
@@ -327,14 +312,22 @@ const stages = computed(() => {
 
 const currentStageIndex = computed(() => stages.value.findIndex((stage) => !stage.done));
 
+const isRefundState = computed(() => ['refund_required', 'refunded'].includes(props.order.payment_status));
+
+const paymentFailedTrack = computed(() => mode.value === 'closed' && props.order.payment_status !== 'paid');
+
 type MarkerState = 'done' | 'current' | 'failed' | 'idle';
 
 const markerState = (index: number): MarkerState => {
-    if (mode.value === 'closed') {
+    if (paymentFailedTrack.value) {
         if (index === 0) return 'done';
         if (index === 1) return 'failed';
 
         return 'idle';
+    }
+
+    if (mode.value === 'closed') {
+        return stages.value[index]?.done ? 'done' : 'idle';
     }
 
     if (stages.value[index]?.done) return 'done';
@@ -382,10 +375,6 @@ const paidMessage = computed(() => {
     return 'Thank you. We are preparing your order now.';
 });
 
-/* ------------------------------------------------------------------ */
-/* Pengiriman                                                          */
-/* ------------------------------------------------------------------ */
-
 const insuranceFee = computed(() => Number(props.order.shipping_insurance_fee ?? 0));
 const paymentFee = computed(() => Number(props.order.payment_fee ?? 0));
 
@@ -432,10 +421,6 @@ const estimateItems = computed<EstimateItem[]>(() => {
 
     return items;
 });
-
-/* ------------------------------------------------------------------ */
-/* Petunjuk bayar                                                      */
-/* ------------------------------------------------------------------ */
 
 const bankGuides: Record<string, Channel[]> = {
     bca_va: [
@@ -604,10 +589,6 @@ const guideStep = (step: string) => step.replaceAll('{va}', vaNumber.value ? for
 
 const openGuide = ref(0);
 
-/* ------------------------------------------------------------------ */
-/* Aksi                                                                */
-/* ------------------------------------------------------------------ */
-
 const copiedKey = ref<string | null>(null);
 let copiedTimer: number | undefined;
 
@@ -685,7 +666,6 @@ const reloadOrder = () => {
     router.reload({ only: ['order'] });
 };
 
-// Polling otomatis tanpa pesan flash (silent), jaring pengaman bila webhook terlambat.
 const silentRefresh = () => {
     if (!activePayment.value) return;
 
@@ -695,8 +675,6 @@ const silentRefresh = () => {
         { preserveScroll: true, preserveState: true, only: ['order'] },
     );
 };
-
-/* Pemilih metode bayar (komponen yang sama dengan checkout) */
 
 const showMethodModal = ref(false);
 const payForm = useForm<{ method: string }>({ method: '' });
@@ -722,8 +700,6 @@ const chooseMethod = (key: string) => {
     });
 };
 
-/* Modal batalkan order */
-
 const showCancelModal = ref(false);
 const cancelForm = useForm({});
 const reorderForm = useForm({});
@@ -740,10 +716,6 @@ const confirmCancel = () => {
         },
     });
 };
-
-/* ------------------------------------------------------------------ */
-/* Siklus hidup                                                        */
-/* ------------------------------------------------------------------ */
 
 const justPaid = ref(false);
 
@@ -841,9 +813,7 @@ onBeforeUnmount(() => {
             </section>
 
             <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-10">
-                <!-- ============================ KOLOM UTAMA ============================ -->
                 <div class="min-w-0 space-y-6">
-                    <!-- Pita status -->
                     <section
                         v-if="mode === 'awaiting'"
                         class="border-2 border-neutral-950 p-5 transition-colors duration-500 md:p-7"
@@ -966,8 +936,7 @@ onBeforeUnmount(() => {
                         </div>
                     </section>
 
-                    <!-- Strip progres -->
-                    <section class="border border-neutral-200 px-4 py-6 sm:px-8">
+                    <section v-if="!isRefundState" class="border border-neutral-200 px-4 py-6 sm:px-8">
                         <ol class="grid grid-cols-5">
                             <li
                                 v-for="(stage, index) in stages"
@@ -977,7 +946,7 @@ onBeforeUnmount(() => {
                                 <span
                                     v-if="index > 0"
                                     class="absolute right-1/2 top-4 h-0.5 w-full -translate-y-1/2"
-                                    :class="stage.done && mode !== 'closed' ? 'bg-neutral-950' : 'bg-neutral-200'"
+                                    :class="stage.done && !paymentFailedTrack ? 'bg-neutral-950' : 'bg-neutral-200'"
                                 ></span>
 
                                 <span
@@ -1016,7 +985,6 @@ onBeforeUnmount(() => {
                         </ol>
                     </section>
 
-                    <!-- ===== Menunggu pembayaran ===== -->
                     <template v-if="mode === 'awaiting'">
                         <p
                             v-if="payForm.processing"
@@ -1213,7 +1181,6 @@ onBeforeUnmount(() => {
                         </p>
                     </template>
 
-                    <!-- ===== Sudah dibayar: pengiriman ===== -->
                     <template v-else-if="mode === 'paid'">
                         <section v-if="estimateItems.length" class="grid gap-3 sm:grid-cols-3">
                             <div
@@ -1296,7 +1263,6 @@ onBeforeUnmount(() => {
                     </template>
                 </div>
 
-                <!-- ============================ RINGKASAN ============================ -->
                 <aside class="h-fit space-y-6 lg:sticky lg:top-28">
                     <section class="border border-neutral-200 bg-white">
                         <div class="flex items-baseline justify-between border-b border-neutral-200 px-5 py-4">
@@ -1420,23 +1386,15 @@ onBeforeUnmount(() => {
                             Cancel order
                         </button>
 
-                        <div class="space-y-2 pt-2 text-center text-xs leading-6 text-neutral-500">
-                            <p>
-                                Need help?
-                                <Link :href="HELP_LINKS.contact" class="font-bold text-neutral-950 underline underline-offset-4">Contact us</Link>
-                            </p>
-
-                            <p class="flex justify-center gap-5">
-                                <Link :href="HELP_LINKS.faq" class="underline underline-offset-4 hover:text-neutral-950">FAQ</Link>
-                                <Link :href="HELP_LINKS.terms" class="underline underline-offset-4 hover:text-neutral-950">Terms &amp; Conditions</Link>
-                            </p>
-                        </div>
+                        <p class="pt-2 text-center text-xs leading-6 text-neutral-500">
+                            Need help?
+                            <Link href="/faq" class="font-bold text-neutral-950 underline underline-offset-4">Read our FAQ</Link>
+                        </p>
                     </div>
                 </aside>
             </div>
         </main>
 
-        <!-- Bar bawah (HP) -->
         <div
             v-if="showStickyBar"
             class="fixed inset-x-0 bottom-0 z-40 border-t-2 border-neutral-950 bg-white px-4 pt-3 lg:hidden"
@@ -1459,7 +1417,6 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <!-- Pemilih metode bayar (sama dengan checkout) -->
         <PaymentPicker
             :open="showMethodModal"
             :methods="paymentMethods"
@@ -1469,7 +1426,6 @@ onBeforeUnmount(() => {
             @select="chooseMethod"
         />
 
-        <!-- Modal batalkan order -->
         <div
             v-if="showCancelModal"
             class="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 sm:items-center"

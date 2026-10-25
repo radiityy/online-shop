@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import StoreFooter from '@/components/StoreFooter.vue';
 
 type PageProps = {
     auth?: {
@@ -158,15 +159,54 @@ const menuGroups: MenuGroup[] = [
     },
 ];
 
+// Menu HP: Shop dan sub-grupnya berupa accordion, tertutup saat menu dibuka.
+const mobileShopLinks: MenuItem[] = [
+    { label: 'New Arrivals', href: '/products' },
+    { label: 'All Products', href: '/products' },
+];
+
+const mobileShopGroups: (MenuGroup & { key: string })[] = [
+    {
+        key: 'clothing',
+        title: 'Clothing',
+        items: [
+            { label: 'Tees', href: '/products?category=tees' },
+            { label: 'Hoodies', href: '/products?category=hoodies' },
+            { label: 'Longsleeve', href: '/products?category=longsleeve' },
+            { label: 'Shirts', href: '/products?category=shirts' },
+            { label: 'Outerwear', href: '/products?category=outerwear' },
+            { label: 'Pants', href: '/products?category=pants' },
+        ],
+    },
+    {
+        key: 'accessories',
+        title: 'Accessories',
+        items: [
+            { label: 'Headwear', href: '/products?category=headwear' },
+            { label: 'Bags', href: '/products?category=bags' },
+            { label: 'Socks', href: '/products?category=socks' },
+            { label: 'Jewelry', href: '/products?category=jewelry' },
+        ],
+    },
+];
+
+const mobileOpen = ref<Record<string, boolean>>({});
+
+const toggleMobileSection = (key: string) => {
+    mobileOpen.value = { ...mobileOpen.value, [key]: !mobileOpen.value[key] };
+};
+
 const closeMenus = () => {
     isShopOpen.value = false;
     isAccountOpen.value = false;
     isMobileMenuOpen.value = false;
     isNotificationsOpen.value = false;
+    mobileOpen.value = {};
 };
 
 const toggleMobileMenu = () => {
     isMobileMenuOpen.value = !isMobileMenuOpen.value;
+    mobileOpen.value = {};
     isShopOpen.value = false;
     isAccountOpen.value = false;
     isNotificationsOpen.value = false;
@@ -939,131 +979,143 @@ onBeforeUnmount(() => {
 
             <div
                 v-if="isMobileMenuOpen"
-                class="max-h-[calc(100vh-72px)] overflow-y-auto border-t border-neutral-200 bg-white px-6 py-7 text-neutral-950 shadow-2xl lg:hidden"
+                class="max-h-[calc(100vh-72px)] overflow-y-auto border-t border-neutral-200 bg-white text-neutral-950 shadow-2xl lg:hidden"
             >
-                <div class="space-y-7">
-                    <div
-                        v-for="group in menuGroups"
-                        :key="group.title"
+                <nav class="px-6 pb-4 pt-2">
+                    <button
+                        type="button"
+                        class="flex w-full items-center gap-3 border-b border-neutral-200 py-4 text-left text-sm font-semibold text-neutral-500"
+                        @click="openSearch"
                     >
-                        <p class="mb-4 text-xs font-black uppercase tracking-[0.25em] text-neutral-400">
-                            {{ group.title }}
-                        </p>
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-5 w-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            aria-hidden="true"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m1.1-5.4a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" />
+                        </svg>
+                        Search
+                    </button>
 
-                        <div class="grid grid-cols-2 gap-4 text-base font-bold">
+                    <div>
+                        <button
+                            type="button"
+                            class="flex w-full items-center justify-between py-4 text-left text-[13px] font-bold uppercase tracking-[0.16em]"
+                            :aria-expanded="Boolean(mobileOpen.shop)"
+                            @click="toggleMobileSection('shop')"
+                        >
+                            Shop
+                            <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 shrink-0 transition-transform"
+                            :class="mobileOpen.shop ? 'rotate-180' : ''"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            aria-hidden="true"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
+                        </svg>
+                        </button>
+
+                        <div v-show="mobileOpen.shop" class="pb-2 pl-4">
                             <Link
-                                v-for="item in group.items"
+                                v-for="item in mobileShopLinks"
                                 :key="item.label"
                                 :href="item.href"
+                                class="block py-3 text-sm font-semibold"
                                 @click="closeMenus"
                             >
                                 {{ item.label }}
                             </Link>
-                        </div>
-                    </div>
 
-                    <div class="border-t border-neutral-200 pt-6">
-                        <div class="space-y-4 text-base font-black uppercase tracking-[0.16em]">
-                            <Link href="/products" class="block" @click="closeMenus">
-                                Shop
-                            </Link>
-
-                            <button
-                                type="button"
-                                class="block text-left"
-                                @click="openSearch"
-                            >
-                                Search
-                            </button>
-
-                            <Link href="/products" class="block" @click="closeMenus">
-                                Collection
-                            </Link>
-
-                            <Link href="/products" class="block" @click="closeMenus">
-                                Sale
-                            </Link>
-
-                            <Link href="/products" class="block" @click="closeMenus">
-                                Campaign
-                            </Link>
-                            <Link href="/cart" class="block" @click="closeMenus">
-                                Cart
-                            </Link>
-
-                            <Link
-                                v-if="isLoggedIn"
-                                href="/account"
-                                class="block"
-                                @click="closeMenus"
-                            >
-                                Account
-                            </Link>
-
-                            <Link
-                                v-if="isLoggedIn"
-                                href="/orders"
-                                class="block"
-                                @click="closeMenus"
-                            >
-                                Orders
-                            </Link>
-
-                            <Link
-                                v-if="isLoggedIn"
-                                href="/notifications"
-                                class="flex items-center gap-3"
-                                @click="closeMenus"
-                            >
-                                <span>Notifications</span>
-
-                                <span
-                                    v-if="unreadNotificationsCount > 0"
-                                    class="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-black text-white"
+                            <div v-for="group in mobileShopGroups" :key="group.key">
+                                <button
+                                    type="button"
+                                    class="flex w-full items-center justify-between py-3 text-left text-sm font-semibold"
+                                    :aria-expanded="Boolean(mobileOpen[group.key])"
+                                    @click="toggleMobileSection(group.key)"
                                 >
-                                    {{ unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount }}
-                                </span>
-                            </Link>
+                                    {{ group.title }}
+                                    <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 shrink-0 transition-transform"
+                            :class="mobileOpen[group.key] ? 'rotate-180' : ''"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            aria-hidden="true"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
+                        </svg>
+                                </button>
 
-                            <Link
-                                v-if="isLoggedIn"
-                                href="/account/addresses"
-                                class="block"
-                                @click="closeMenus"
-                            >
-                                Addresses
-                            </Link>
-
-                            <Link
-                                v-if="!isLoggedIn"
-                                href="/login"
-                                class="block"
-                                @click="closeMenus"
-                            >
-                                Login
-                            </Link>
-
-                            <Link
-                                v-if="!isLoggedIn"
-                                href="/register"
-                                class="block"
-                                @click="closeMenus"
-                            >
-                                Register
-                            </Link>
-
-                            <Link
-                                v-if="isLoggedIn"
-                                href="/logout"
-                                method="post"
-                                as="button"
-                                class="block text-left"
-                                @click="closeMenus"
-                            >
-                                Log Out
-                            </Link>
+                                <div v-show="mobileOpen[group.key]" class="pb-1 pl-4">
+                                    <Link
+                                        v-for="item in group.items"
+                                        :key="item.label"
+                                        :href="item.href"
+                                        class="block py-2.5 text-sm text-neutral-600"
+                                        @click="closeMenus"
+                                    >
+                                        {{ item.label }}
+                                    </Link>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    <Link
+                        href="/products"
+                        class="block py-4 text-[13px] font-bold uppercase tracking-[0.16em]"
+                        @click="closeMenus"
+                    >
+                        Collection
+                    </Link>
+
+                    <Link
+                        href="/products"
+                        class="block py-4 text-[13px] font-bold uppercase tracking-[0.16em]"
+                        @click="closeMenus"
+                    >
+                        Sale
+                    </Link>
+
+                    <Link
+                        href="/products"
+                        class="block py-4 text-[13px] font-bold uppercase tracking-[0.16em]"
+                        @click="closeMenus"
+                    >
+                        Campaign
+                    </Link>
+                </nav>
+
+                <div class="space-y-4 bg-neutral-100 px-6 py-6 text-sm font-semibold">
+                    <template v-if="isLoggedIn">
+                        <Link href="/account" class="block" @click="closeMenus">My Account</Link>
+                        <Link href="/orders" class="block" @click="closeMenus">Orders</Link>
+                        <Link href="/account/addresses" class="block" @click="closeMenus">Addresses</Link>
+                        <Link
+                            href="/logout"
+                            method="post"
+                            as="button"
+                            class="block text-left text-neutral-500"
+                            @click="closeMenus"
+                        >
+                            Log Out
+                        </Link>
+                    </template>
+
+                    <template v-else>
+                        <Link href="/login" class="block" @click="closeMenus">Login</Link>
+                        <Link href="/register" class="block" @click="closeMenus">Register</Link>
+                    </template>
                 </div>
             </div>
         </header>
@@ -1152,136 +1204,7 @@ onBeforeUnmount(() => {
 
         <slot />
 
-        <footer class="border-t border-neutral-200 bg-neutral-950 text-white">
-            <div class="mx-auto grid max-w-7xl gap-10 px-6 py-14 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
-                    <div>
-                        <h2 class="text-2xl font-black uppercase tracking-[0.22em]">
-                            NEVERENDING
-                        </h2>
-
-                        <p class="mt-5 max-w-sm text-sm leading-7 text-white/60">
-                            Daily wear for endless rotation. Clean pieces built for everyday movement.
-                        </p>
-
-                        <div class="mt-7 flex flex-wrap items-center gap-6">
-                            <a
-                                href="https://www.instagram.com/adyneee/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label="Instagram"
-                                class="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-white/60 transition hover:text-white"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    class="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    stroke-width="1.8"
-                                >
-                                    <rect x="3" y="3" width="18" height="18" rx="5" />
-                                    <circle cx="12" cy="12" r="4" />
-                                    <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
-                                </svg>
-
-                                Instagram
-                            </a>
-
-                            <a
-                                href="https://www.tiktok.com/@radiityyy"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label="TikTok"
-                                class="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-white/60 transition hover:text-white"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    class="h-4 w-4"
-                                    viewBox="0 0 24 24"
-                                    fill="currentColor"
-                                >
-                                    <path
-                                        d="M16.6 3c.3 2.2 1.6 3.8 3.9 4.1v3.3c-1.4 0-2.7-.4-3.9-1.2v5.9c0 3.5-2.4 5.9-5.8 5.9A5.6 5.6 0 0 1 5 15.4c0-3.4 2.7-5.9 6.3-5.6v3.4c-1.6-.3-2.8.6-2.8 2.1 0 1.3 1 2.2 2.3 2.2 1.4 0 2.3-.9 2.3-2.7V3h3.5Z"
-                                    />
-                                </svg>
-
-                                TikTok
-                            </a>
-                        </div>
-                    </div>
-                <div>
-                    <h3 class="text-sm font-black uppercase tracking-[0.25em]">
-                        Shop
-                    </h3>
-
-                    <div class="mt-5 space-y-3 text-sm text-white/60">
-                        <Link href="/products" class="block hover:text-white">
-                            New Arrivals
-                        </Link>
-
-                        <Link href="/products" class="block hover:text-white">
-                            All Products
-                        </Link>
-
-                        <Link href="/products?category=tees" class="block hover:text-white">
-                            Tees
-                        </Link>
-
-                        <Link href="/products?category=hoodies" class="block hover:text-white">
-                            Hoodies
-                        </Link>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="text-sm font-black uppercase tracking-[0.25em]">
-                        Support
-                    </h3>
-
-                    <div class="mt-5 space-y-3 text-sm text-white/60">
-                        <Link href="/about" class="block hover:text-white">
-                            About Us
-                        </Link>
-                        <Link href="/orders" class="block hover:text-white">
-                            Order Status
-                        </Link>
-
-                        <Link href="/account/addresses" class="block hover:text-white">
-                            My Addresses
-                        </Link>
-
-                        <Link href="/faq" class="block hover:text-white">
-                            FAQ
-                        </Link>
-
-                        <Link href="/shipping" class="block hover:text-white">
-                            Shipping
-                        </Link>
-
-                        <Link href="/returns" class="block hover:text-white">
-                            Returns
-                        </Link>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="text-sm font-black uppercase tracking-[0.25em]">
-                        Payment & Shipping
-                    </h3>
-
-                    <div class="mt-5 space-y-3 text-sm text-white/60">
-                        <p>BCA / Mandiri / BRI</p>
-                        <p>QRIS / E-Wallet</p>
-                        <p>JNE / J&T / SiCepat</p>
-                        <p>Anteraja</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="border-t border-white/10 px-6 py-5 text-center text-xs uppercase tracking-[0.25em] text-white/40">
-                © 2026 NEVERENDING. Endless daily wear.
-            </div>
-        </footer>
+        <StoreFooter />
     </div>
 </template>
 

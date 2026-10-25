@@ -15,22 +15,23 @@ import StoreLayout from '@/layouts/StoreLayout.vue';
                 </h1>
 
                 <p class="mt-5 max-w-2xl text-sm leading-7 text-neutral-600 md:text-base">
-                    Informasi pengiriman pesanan NEVERENDING.
+                    How NEVERENDING orders are processed and delivered.
                 </p>
             </section>
 
             <section class="grid gap-6 md:grid-cols-2">
                 <div class="border border-neutral-200 p-6">
                     <p class="text-xs font-black uppercase tracking-[0.25em] text-neutral-500">
-                        Courier
+                        Couriers
                     </p>
 
                     <h2 class="mt-3 text-2xl font-black uppercase tracking-[-0.03em]">
-                        JNE / J&T / SiCepat / Anteraja
+                        JNE / J&amp;T / SiCepat / Anteraja
                     </h2>
 
                     <p class="mt-4 text-sm leading-7 text-neutral-600">
-                        Pengiriman dilakukan menggunakan ekspedisi yang tersedia. Nomor resi akan diberikan setelah pesanan dikirim.
+                        We ship within Indonesia. The services available to you, their prices and delivery estimates are
+                        calculated at checkout from your saved address and the weight of your order.
                     </p>
                 </div>
 
@@ -40,15 +41,30 @@ import StoreLayout from '@/layouts/StoreLayout.vue';
                     </p>
 
                     <h2 class="mt-3 text-2xl font-black uppercase tracking-[-0.03em]">
-                        1-2 Hari Kerja
+                        1–2 Working Days
                     </h2>
 
                     <p class="mt-4 text-sm leading-7 text-neutral-600">
-                        Pesanan diproses setelah pembayaran dikonfirmasi. Estimasi dapat berubah saat periode campaign atau sale.
+                        Orders are processed after your payment is confirmed. Processing can take longer during campaigns
+                        and sales. Delivery estimates shown at checkout start from dispatch and do not include processing time.
                     </p>
                 </div>
 
-                <div class="border border-neutral-200 p-6 md:col-span-2">
+                <div class="border border-neutral-200 p-6">
+                    <p class="text-xs font-black uppercase tracking-[0.25em] text-neutral-500">
+                        Insurance
+                    </p>
+
+                    <h2 class="mt-3 text-2xl font-black uppercase tracking-[-0.03em]">
+                        Included On Every Order
+                    </h2>
+
+                    <p class="mt-4 text-sm leading-7 text-neutral-600">
+                        Shipping insurance is added to every order and shown as a separate line in your order summary.
+                    </p>
+                </div>
+
+                <div class="border border-neutral-200 p-6">
                     <p class="text-xs font-black uppercase tracking-[0.25em] text-neutral-500">
                         Tracking
                     </p>
@@ -58,7 +74,8 @@ import StoreLayout from '@/layouts/StoreLayout.vue';
                     </h2>
 
                     <p class="mt-4 text-sm leading-7 text-neutral-600">
-                        Customer dapat melihat courier, service, nomor resi, dan status pengiriman melalui halaman detail pesanan.
+                        Once your order has shipped, the courier, service, tracking number and delivery status appear on
+                        your order page.
                     </p>
                 </div>
             </section>

@@ -15,38 +15,49 @@ import StoreLayout from '@/layouts/StoreLayout.vue';
                 </h1>
 
                 <p class="mt-5 max-w-2xl text-sm leading-7 text-neutral-600 md:text-base">
-                    Kebijakan pengembalian dan penukaran produk NEVERENDING.
+                    Our return policy for NEVERENDING products.
                 </p>
             </section>
 
             <section class="space-y-5">
                 <div class="border border-neutral-200 p-6">
                     <h2 class="text-2xl font-black uppercase tracking-[-0.03em]">
-                        Syarat Pengembalian
+                        Eligibility
                     </h2>
 
                     <p class="mt-4 text-sm leading-7 text-neutral-600">
-                        Produk dapat diajukan untuk retur jika terdapat kesalahan produk, cacat produksi, atau ukuran tidak sesuai dengan pesanan.
+                        You can request a return if you received the wrong product, a defective product, or a size that
+                        does not match your order.
                     </p>
                 </div>
 
                 <div class="border border-neutral-200 p-6">
                     <h2 class="text-2xl font-black uppercase tracking-[-0.03em]">
-                        Kondisi Produk
+                        Product Condition
                     </h2>
 
                     <p class="mt-4 text-sm leading-7 text-neutral-600">
-                        Produk harus belum digunakan, belum dicuci, tag masih terpasang, dan dikirim kembali dengan kondisi baik.
+                        Items must be unused and unwashed, with the tags still attached, and sent back in good condition.
                     </p>
                 </div>
 
                 <div class="border border-neutral-200 p-6">
                     <h2 class="text-2xl font-black uppercase tracking-[-0.03em]">
-                        Hubungi Admin
+                        Return Shipping
                     </h2>
 
                     <p class="mt-4 text-sm leading-7 text-neutral-600">
-                        Ajukan retur dengan menyertakan order code, foto produk, dan alasan pengembalian kepada admin NEVERENDING.
+                        The buyer pays the shipping cost of the return.
+                    </p>
+                </div>
+
+                <div class="border border-neutral-200 p-6">
+                    <h2 class="text-2xl font-black uppercase tracking-[-0.03em]">
+                        How To Request A Return
+                    </h2>
+
+                    <p class="mt-4 text-sm leading-7 text-neutral-600">
+                        Send your order code, photos of the product and the reason for the return through our support chat.
                     </p>
                 </div>
             </section>

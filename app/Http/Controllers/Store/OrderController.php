@@ -135,7 +135,7 @@ class OrderController extends Controller
             }
 
             if ($locked->payment_status === 'paid') {
-                return ['error' => 'This order has already been paid, so it can no longer be cancelled here. Please contact us.'];
+                return ['error' => 'This order has already been paid, so it can no longer be cancelled. See our FAQ for returns and refunds.'];
             }
 
             if (

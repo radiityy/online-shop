@@ -226,34 +226,6 @@ const discountPercent = (product: Product) => {
                     No products are available right now.
                 </div>
             </section>
-
-            <section class="bg-neutral-950 px-6 py-20 text-white sm:px-10 lg:px-[7.5vw]">
-                <div class="mx-auto grid max-w-[1840px] gap-10 md:grid-cols-[1fr_1.2fr] md:items-center">
-                    <div>
-                        <p class="text-xs font-black uppercase tracking-[0.3em] text-white/50">
-                            About Neverending
-                        </p>
-
-                        <h2 class="mt-4 text-4xl font-black uppercase leading-tight tracking-[-0.03em] md:text-6xl">
-                            Daily wear for endless rotation.
-                        </h2>
-                    </div>
-
-                    <div>
-                        <p class="text-base leading-8 text-white/70">
-                            NEVERENDING menghadirkan pakaian clean, modern, dan mudah dipakai untuk aktivitas sehari-hari.
-                            Setiap koleksi dirancang sebagai bagian dari rotasi outfit yang tidak cepat hilang oleh tren.
-                        </p>
-
-                        <Link
-                            href="/products"
-                            class="mt-8 inline-flex rounded-full border border-white bg-white px-8 py-4 text-[11px] font-black uppercase tracking-[0.25em] text-neutral-950 transition duration-300 hover:bg-white/10 hover:text-white hover:backdrop-blur-sm"
-                        >
-                            Explore Collection
-                        </Link>
-                    </div>
-                </div>
-            </section>
         </main>
     </StoreLayout>
 </template>
