@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Store;
 
 use App\Http\Controllers\Controller;
+use App\Models\OrderItem;
 use App\Models\OrderNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,11 +16,21 @@ class NotificationController extends Controller
     public function index(): Response
     {
         $notifications = OrderNotification::query()
-            ->with('order:id,order_code')
+            ->with([
+                'order' => fn ($query) => $query
+                    ->select('id', 'order_code', 'created_at')
+                    ->withCount('items')
+                    ->with([
+                        'items' => fn ($items) => $items
+                            ->orderBy('id')
+                            ->with('product.primaryImage'),
+                    ]),
+            ])
             ->where('user_id', Auth::id())
             ->latest()
             ->paginate(10)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(fn (OrderNotification $notification) => $this->present($notification));
 
         $unreadCount = OrderNotification::query()
             ->where('user_id', Auth::id())
@@ -56,5 +67,49 @@ class NotificationController extends Controller
             ]);
 
         return back();
+    }
+
+    private function present(OrderNotification $notification): array
+    {
+        $order = $notification->order;
+        $item = $order?->items->first();
+
+        return [
+            'id' => $notification->id,
+            'type' => $notification->type,
+            'title' => $notification->title,
+            'message' => $notification->message,
+            'is_read' => (bool) $notification->is_read,
+            'created_at' => $notification->created_at?->toIso8601String(),
+            'order' => $order ? [
+                'id' => $order->id,
+                'order_code' => $order->order_code,
+                'ordered_at' => $order->created_at?->toIso8601String(),
+                'extra_items' => max(0, (int) $order->items_count - 1),
+                'product' => $item ? [
+                    'name' => $item->product_name,
+                    'size' => $this->sizeLabel($item),
+                    'image' => $this->imageUrl($item),
+                ] : null,
+            ] : null,
+        ];
+    }
+
+    private function sizeLabel(OrderItem $item): ?string
+    {
+        if (blank($item->variant_name)) {
+            return null;
+        }
+
+        $first = trim(explode('/', $item->variant_name)[0]);
+
+        return $first !== '' ? $first : $item->variant_name;
+    }
+
+    private function imageUrl(OrderItem $item): string
+    {
+        $path = $item->product?->primaryImage?->image_path;
+
+        return $path ? '/storage/'.$path : '/placeholder-product.jpg';
     }
 }
