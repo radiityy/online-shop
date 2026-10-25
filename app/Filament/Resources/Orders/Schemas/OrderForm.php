@@ -34,6 +34,8 @@ class OrderForm
                                         'refund_required' => 'Refund Required',
                                         'refunded' => 'Refunded',
                                     ])
+                                    ->disableOptionWhen(fn (string $value): bool => in_array($value, ['refund_required', 'refunded'], true))
+                                    ->helperText('Refund Required and Refunded are managed by the system.')
                                     ->required(),
 
                                 Select::make('order_status')

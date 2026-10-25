@@ -54,6 +54,30 @@ class EditOrder extends EditRecord
             'delivered',
         ];
 
+        $refundStatuses = ['refund_required', 'refunded'];
+
+        $currentPaymentStatus = $this->record->payment_status;
+
+        $requestedPaymentStatus = $data['payment_status'] ?? $currentPaymentStatus;
+
+        $isTouchingRefundStatus =
+            $requestedPaymentStatus !== $currentPaymentStatus
+            && (
+                in_array($requestedPaymentStatus, $refundStatuses, true)
+                || in_array($currentPaymentStatus, $refundStatuses, true)
+            );
+
+        if ($isTouchingRefundStatus) {
+            Notification::make()
+                ->title('Refund statuses are managed by the system')
+                ->body('Refund Required is set automatically when a payment cannot be used. To finish a refund, use the "Mark as refunded" action on the orders list after the money has been returned.')
+                ->danger()
+                ->persistent()
+                ->send();
+
+            throw new Halt();
+        }
+
         $isTryingToReactivate =
             $this->record->stock_released
             && (
@@ -99,6 +123,7 @@ class EditOrder extends EditRecord
             match ($this->record->payment_status) {
                 'paid' => $service->notifyPaymentConfirmed($this->record),
                 'failed' => $service->notifyPaymentFailed($this->record),
+                'expired' => $service->notifyPaymentExpired($this->record),
                 default => null,
             };
         }
