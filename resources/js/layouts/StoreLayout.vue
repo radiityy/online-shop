@@ -107,6 +107,8 @@ const hasNotificationsError = ref(false);
 const latestNotifications = ref<NotificationPreview[]>([]);
 const openingNotificationId = ref<number | null>(null);
 const notificationsRoot = ref<HTMLElement | null>(null);
+const menuToggleButton = ref<HTMLButtonElement | null>(null);
+const menuCloseButton = ref<HTMLButtonElement | null>(null);
 
 let latestRequestId = 0;
 
@@ -159,7 +161,6 @@ const menuGroups: MenuGroup[] = [
     },
 ];
 
-// Menu HP: Shop dan sub-grupnya berupa accordion, tertutup saat menu dibuka.
 const mobileShopLinks: MenuItem[] = [
     { label: 'New Arrivals', href: '/products' },
     { label: 'All Products', href: '/products' },
@@ -201,15 +202,19 @@ const closeMenus = () => {
     isAccountOpen.value = false;
     isMobileMenuOpen.value = false;
     isNotificationsOpen.value = false;
-    mobileOpen.value = {};
 };
 
-const toggleMobileMenu = () => {
-    isMobileMenuOpen.value = !isMobileMenuOpen.value;
+const openMobileMenu = () => {
     mobileOpen.value = {};
     isShopOpen.value = false;
     isAccountOpen.value = false;
     isNotificationsOpen.value = false;
+    isMobileMenuOpen.value = true;
+};
+
+const closeMobileMenu = () => {
+    closeMenus();
+    nextTick(() => menuToggleButton.value?.focus());
 };
 
 const toggleAccount = () => {
@@ -348,6 +353,27 @@ const handleKeydown = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && isNotificationsOpen.value) {
         isNotificationsOpen.value = false;
     }
+
+    if (event.key === 'Escape' && isMobileMenuOpen.value) {
+        closeMobileMenu();
+    }
+};
+
+watch(isMobileMenuOpen, async (open) => {
+    document.body.style.overflow = open ? 'hidden' : '';
+
+    if (open) {
+        await nextTick();
+        menuCloseButton.value?.focus();
+    }
+});
+
+let desktopQuery: MediaQueryList | undefined;
+
+const handleDesktopChange = (event: MediaQueryListEvent) => {
+    if (event.matches) {
+        closeMenus();
+    }
 };
 
 const handleScroll = () => {
@@ -364,7 +390,6 @@ const showTransparentHeader = computed(() => {
     return (
         props.transparentHeader === true &&
         !isScrolled.value &&
-        !isMobileMenuOpen.value &&
         !isSearchOpen.value
     );
 });
@@ -373,7 +398,6 @@ const showAnnouncement = computed(() => {
     return (
         props.transparentHeader === true &&
         !isScrolled.value &&
-        !isMobileMenuOpen.value &&
         !isSearchOpen.value
     );
 });
@@ -396,6 +420,9 @@ onMounted(() => {
     window.addEventListener('keydown', handleKeydown);
     document.addEventListener('click', handleDocumentClick);
 
+    desktopQuery = window.matchMedia('(min-width: 1024px)');
+    desktopQuery.addEventListener('change', handleDesktopChange);
+
     removeRouterStartListener = router.on('start', () => {
         isPageLoading.value = true;
     });
@@ -409,6 +436,8 @@ onBeforeUnmount(() => {
     window.removeEventListener('scroll', handleScroll);
     window.removeEventListener('keydown', handleKeydown);
     document.removeEventListener('click', handleDocumentClick);
+    desktopQuery?.removeEventListener('change', handleDesktopChange);
+    document.body.style.overflow = '';
 
     removeRouterStartListener?.();
     removeRouterFinishListener?.();
@@ -502,13 +531,15 @@ onBeforeUnmount(() => {
         >
             <div class="grid grid-cols-[auto_1fr_auto] items-center px-5 py-4 lg:hidden">
                 <button
+                    ref="menuToggleButton"
                     type="button"
                     class="flex items-center justify-self-start"
                     aria-label="Open menu"
-                    @click="toggleMobileMenu"
+                    aria-controls="mobile-menu"
+                    :aria-expanded="isMobileMenuOpen"
+                    @click="openMobileMenu"
                 >
                     <svg
-                        v-if="!isMobileMenuOpen"
                         xmlns="http://www.w3.org/2000/svg"
                         class="h-7 w-7"
                         fill="none"
@@ -520,22 +551,6 @@ onBeforeUnmount(() => {
                             stroke-linejoin="round"
                             stroke-width="1.8"
                             d="M4 7h16M4 12h16M4 17h16"
-                        />
-                    </svg>
-
-                    <svg
-                        v-else
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-7 w-7"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="1.8"
-                            d="M6 18 18 6M6 6l12 12"
                         />
                     </svg>
                 </button>
@@ -976,149 +991,211 @@ onBeforeUnmount(() => {
                     </Link>
                 </div>
             </div>
+        </header>
 
-            <div
-                v-if="isMobileMenuOpen"
-                class="max-h-[calc(100vh-72px)] overflow-y-auto border-t border-neutral-200 bg-white text-neutral-950 shadow-2xl lg:hidden"
+        <div class="lg:hidden">
+            <Transition
+                enter-active-class="transition-opacity duration-300 ease-out motion-reduce:transition-none"
+                enter-from-class="opacity-0"
+                leave-active-class="transition-opacity duration-200 ease-in motion-reduce:transition-none"
+                leave-to-class="opacity-0"
             >
-                <nav class="px-6 pb-4 pt-2">
-                    <button
-                        type="button"
-                        class="flex w-full items-center gap-3 border-b border-neutral-200 py-4 text-left text-sm font-semibold text-neutral-500"
-                        @click="openSearch"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                            aria-hidden="true"
-                        >
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m1.1-5.4a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" />
-                        </svg>
-                        Search
-                    </button>
+                <div
+                    v-if="isMobileMenuOpen"
+                    class="fixed inset-0 z-[110] bg-neutral-950/60"
+                    aria-hidden="true"
+                    @click="closeMobileMenu"
+                ></div>
+            </Transition>
 
-                    <div>
+            <Transition
+                enter-active-class="transition-transform duration-300 ease-out motion-reduce:transition-none"
+                enter-from-class="-translate-x-full"
+                leave-active-class="transition-transform duration-200 ease-in motion-reduce:transition-none"
+                leave-to-class="-translate-x-full"
+            >
+                <aside
+                    v-if="isMobileMenuOpen"
+                    id="mobile-menu"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Main menu"
+                    class="fixed inset-y-0 left-0 z-[111] flex w-[86%] max-w-[22rem] flex-col bg-white text-neutral-950 shadow-2xl"
+                >
+                    <div class="flex h-[60px] shrink-0 items-center gap-4 border-b border-neutral-200 px-5">
                         <button
+                            ref="menuCloseButton"
                             type="button"
-                            class="flex w-full items-center justify-between py-4 text-left text-[13px] font-bold uppercase tracking-[0.16em]"
-                            :aria-expanded="Boolean(mobileOpen.shop)"
-                            @click="toggleMobileSection('shop')"
+                            class="flex items-center"
+                            aria-label="Close menu"
+                            @click="closeMobileMenu"
                         >
-                            Shop
                             <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 shrink-0 transition-transform"
-                            :class="mobileOpen.shop ? 'rotate-180' : ''"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            aria-hidden="true"
-                        >
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
-                        </svg>
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-7 w-7"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="1.8"
+                                    d="M6 18 18 6M6 6l12 12"
+                                />
+                            </svg>
                         </button>
 
-                        <div v-show="mobileOpen.shop" class="pb-2 pl-4">
-                            <Link
-                                v-for="item in mobileShopLinks"
-                                :key="item.label"
-                                :href="item.href"
-                                class="block py-3 text-sm font-semibold"
-                                @click="closeMenus"
-                            >
-                                {{ item.label }}
-                            </Link>
+                        <Link
+                            href="/"
+                            class="text-base font-black uppercase tracking-[0.28em]"
+                            @click="closeMenus"
+                        >
+                            NEVERENDING
+                        </Link>
+                    </div>
 
-                            <div v-for="group in mobileShopGroups" :key="group.key">
+                    <div class="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+                        <nav class="shrink-0 px-6 pb-4 pt-2">
+                            <button
+                                type="button"
+                                class="flex w-full items-center gap-3 border-b border-neutral-200 py-4 text-left text-sm font-semibold text-neutral-500"
+                                @click="openSearch"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-5 w-5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                    aria-hidden="true"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m1.1-5.4a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" />
+                                </svg>
+                                Search
+                            </button>
+
+                            <div>
                                 <button
                                     type="button"
-                                    class="flex w-full items-center justify-between py-3 text-left text-sm font-semibold"
-                                    :aria-expanded="Boolean(mobileOpen[group.key])"
-                                    @click="toggleMobileSection(group.key)"
+                                    class="flex w-full items-center justify-between py-4 text-left text-[13px] font-bold uppercase tracking-[0.16em]"
+                                    :aria-expanded="Boolean(mobileOpen.shop)"
+                                    @click="toggleMobileSection('shop')"
                                 >
-                                    {{ group.title }}
+                                    Shop
                                     <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 shrink-0 transition-transform"
-                            :class="mobileOpen[group.key] ? 'rotate-180' : ''"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            aria-hidden="true"
-                        >
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
-                        </svg>
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="h-4 w-4 shrink-0 transition-transform"
+                                        :class="mobileOpen.shop ? 'rotate-180' : ''"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        aria-hidden="true"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
+                                    </svg>
                                 </button>
 
-                                <div v-show="mobileOpen[group.key]" class="pb-1 pl-4">
+                                <div v-show="mobileOpen.shop" class="pb-2 pl-4">
                                     <Link
-                                        v-for="item in group.items"
+                                        v-for="item in mobileShopLinks"
                                         :key="item.label"
                                         :href="item.href"
-                                        class="block py-2.5 text-sm text-neutral-600"
+                                        class="block py-3 text-sm font-semibold"
                                         @click="closeMenus"
                                     >
                                         {{ item.label }}
                                     </Link>
+
+                                    <div v-for="group in mobileShopGroups" :key="group.key">
+                                        <button
+                                            type="button"
+                                            class="flex w-full items-center justify-between py-3 text-left text-sm font-semibold"
+                                            :aria-expanded="Boolean(mobileOpen[group.key])"
+                                            @click="toggleMobileSection(group.key)"
+                                        >
+                                            {{ group.title }}
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-4 w-4 shrink-0 transition-transform"
+                                                :class="mobileOpen[group.key] ? 'rotate-180' : ''"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                                aria-hidden="true"
+                                            >
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
+                                            </svg>
+                                        </button>
+
+                                        <div v-show="mobileOpen[group.key]" class="pb-1 pl-4">
+                                            <Link
+                                                v-for="item in group.items"
+                                                :key="item.label"
+                                                :href="item.href"
+                                                class="block py-2.5 text-sm text-neutral-600"
+                                                @click="closeMenus"
+                                            >
+                                                {{ item.label }}
+                                            </Link>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
+
+                            <Link
+                                href="/products"
+                                class="block py-4 text-[13px] font-bold uppercase tracking-[0.16em]"
+                                @click="closeMenus"
+                            >
+                                Collection
+                            </Link>
+
+                            <Link
+                                href="/products"
+                                class="block py-4 text-[13px] font-bold uppercase tracking-[0.16em]"
+                                @click="closeMenus"
+                            >
+                                Sale
+                            </Link>
+
+                            <Link
+                                href="/products"
+                                class="block py-4 text-[13px] font-bold uppercase tracking-[0.16em]"
+                                @click="closeMenus"
+                            >
+                                Campaign
+                            </Link>
+                        </nav>
+
+                        <div class="mt-auto shrink-0 bg-neutral-100 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5 text-sm font-semibold">
+                            <template v-if="isLoggedIn">
+                                <Link href="/account" class="block py-2" @click="closeMenus">My Account</Link>
+                                <Link href="/orders" class="block py-2" @click="closeMenus">Orders</Link>
+                                <Link href="/account/addresses" class="block py-2" @click="closeMenus">Addresses</Link>
+                                <Link
+                                    href="/logout"
+                                    method="post"
+                                    as="button"
+                                    class="block py-2 text-left text-neutral-500"
+                                    @click="closeMenus"
+                                >
+                                    Log Out
+                                </Link>
+                            </template>
+
+                            <template v-else>
+                                <Link href="/login" class="block py-2" @click="closeMenus">Login</Link>
+                                <Link href="/register" class="block py-2" @click="closeMenus">Register</Link>
+                            </template>
                         </div>
                     </div>
-
-                    <Link
-                        href="/products"
-                        class="block py-4 text-[13px] font-bold uppercase tracking-[0.16em]"
-                        @click="closeMenus"
-                    >
-                        Collection
-                    </Link>
-
-                    <Link
-                        href="/products"
-                        class="block py-4 text-[13px] font-bold uppercase tracking-[0.16em]"
-                        @click="closeMenus"
-                    >
-                        Sale
-                    </Link>
-
-                    <Link
-                        href="/products"
-                        class="block py-4 text-[13px] font-bold uppercase tracking-[0.16em]"
-                        @click="closeMenus"
-                    >
-                        Campaign
-                    </Link>
-                </nav>
-
-                <div class="space-y-4 bg-neutral-100 px-6 py-6 text-sm font-semibold">
-                    <template v-if="isLoggedIn">
-                        <Link href="/account" class="block" @click="closeMenus">My Account</Link>
-                        <Link href="/orders" class="block" @click="closeMenus">Orders</Link>
-                        <Link href="/account/addresses" class="block" @click="closeMenus">Addresses</Link>
-                        <Link
-                            href="/logout"
-                            method="post"
-                            as="button"
-                            class="block text-left text-neutral-500"
-                            @click="closeMenus"
-                        >
-                            Log Out
-                        </Link>
-                    </template>
-
-                    <template v-else>
-                        <Link href="/login" class="block" @click="closeMenus">Login</Link>
-                        <Link href="/register" class="block" @click="closeMenus">Register</Link>
-                    </template>
-                </div>
-            </div>
-        </header>
+                </aside>
+            </Transition>
+        </div>
 
         <div
             v-if="isSearchOpen"
