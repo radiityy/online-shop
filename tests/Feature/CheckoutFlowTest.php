@@ -7,11 +7,13 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Category;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StoreSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -35,6 +37,27 @@ class CheckoutFlowTest extends TestCase
             'services.biteship.couriers' => 'jnt,jne',
             'services.biteship.preferred_courier' => 'jnt',
             'services.biteship.insurance' => true,
+            'services.midtrans.server_key' => 'Mid-server-test-key',
+            'services.midtrans.is_production' => false,
+            'services.midtrans.expiry_minutes' => 60,
+            'services.midtrans.methods' => [
+                'bca_va' => [
+                    'label' => 'BCA Virtual Account',
+                    'payment_type' => 'bank_transfer',
+                    'bank' => 'bca',
+                    'fee_flat' => 4000,
+                    'fee_percent' => 0,
+                    'enabled' => true,
+                ],
+                'qris' => [
+                    'label' => 'QRIS',
+                    'payment_type' => 'qris',
+                    'bank' => null,
+                    'fee_flat' => 0,
+                    'fee_percent' => 0.7,
+                    'enabled' => true,
+                ],
+            ],
         ]);
 
         Cache::flush();
@@ -51,6 +74,7 @@ class CheckoutFlowTest extends TestCase
 
         $response = $this->actingAs($user)->post('/checkout', $this->payload($address) + [
             'shipping_cost' => 1,
+            'payment_fee' => 1,
             'total' => 1,
         ]);
 
@@ -61,14 +85,34 @@ class CheckoutFlowTest extends TestCase
         $this->assertSame(300000.0, (float) $order->subtotal);
         $this->assertSame(16000.0, (float) $order->shipping_cost);
         $this->assertSame(1000.0, (float) $order->shipping_insurance_fee);
-        $this->assertSame(317000.0, (float) $order->total);
+        $this->assertSame(4000.0, (float) $order->payment_fee);
+        $this->assertSame(321000.0, (float) $order->total);
         $this->assertSame('jnt', $order->shipping_courier_code);
         $this->assertSame('ez', $order->shipping_service_code);
         $this->assertSame($address->id, $order->address_id);
+        $this->assertNotNull($order->payment_expires_at);
+
+        $payment = $order->payments()->firstOrFail();
+
+        $this->assertSame('bca_va', $payment->payment_method);
+        $this->assertSame($order->order_code . '-1', $payment->gateway_order_id);
+        $this->assertSame(Payment::STATUS_PENDING, $payment->status);
+        $this->assertSame('95073296922772990300925', $payment->va_number);
+        $this->assertSame(321000.0, (float) $payment->amount);
+        $this->assertSame(4000.0, (float) $payment->fee);
+
+        Http::assertSent(function ($request) use ($order) {
+            $data = $request->data();
+
+            return str_ends_with($request->url(), '/v2/charge')
+                && $data['payment_type'] === 'bank_transfer'
+                && $data['bank_transfer']['bank'] === 'bca'
+                && $data['transaction_details']['order_id'] === $order->order_code . '-1'
+                && $data['transaction_details']['gross_amount'] === 321000
+                && in_array($data['custom_expiry']['expiry_duration'], [59, 60], true);
+        });
 
         $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 2]);
-        $this->assertDatabaseMissing('payments', ['order_id' => $order->id]);
-        $this->assertNotNull($order->payment_expires_at);
         $this->assertDatabaseHas('shipments', ['order_id' => $order->id, 'courier_code' => 'jnt']);
         $this->assertDatabaseMissing('cart_items', ['id' => $item->id]);
         $this->assertSame(8, $item->variant()->first()->stock);
@@ -179,6 +223,7 @@ class CheckoutFlowTest extends TestCase
                 'full_address' => 'Jl. Manual No. 1',
                 'shipping_courier_code' => 'jnt',
                 'shipping_service_code' => 'ez',
+                'payment_method' => 'bca_va',
                 'agree_terms' => true,
             ])
             ->assertSessionHasErrors('address_id');
@@ -202,6 +247,85 @@ class CheckoutFlowTest extends TestCase
         $this->assertDatabaseCount('orders', 0);
     }
 
+    public function test_checkout_requires_a_payment_method(): void
+    {
+        Http::fake();
+        $this->createOrigin();
+
+        $user = $this->customer();
+        $this->createCartItemForUser($user);
+        $address = $this->createAddress($user, self::DESTINATION_AREA);
+
+        $payload = $this->payload($address);
+        unset($payload['payment_method']);
+
+        $this->actingAs($user)
+            ->post('/checkout', $payload)
+            ->assertSessionHasErrors('payment_method');
+
+        $this->assertDatabaseCount('orders', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_checkout_rejects_a_payment_method_that_is_not_offered(): void
+    {
+        Http::fake();
+        $this->createOrigin();
+
+        $user = $this->customer();
+        $this->createCartItemForUser($user);
+        $address = $this->createAddress($user, self::DESTINATION_AREA);
+
+        $this->actingAs($user)
+            ->post('/checkout', $this->payload($address, ['payment_method' => 'bitcoin']))
+            ->assertSessionHasErrors('payment_method');
+
+        $this->assertDatabaseCount('orders', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_checkout_keeps_the_order_without_a_fee_when_the_gateway_rejects_the_charge(): void
+    {
+        $this->assertOrderSurvivesGatewayFailure(
+            Http::response([
+                'status_code' => '401',
+                'status_message' => 'Access denied due to unauthorized transaction, please check client/server key',
+            ], 401)
+        );
+    }
+
+    public function test_checkout_keeps_the_order_without_a_fee_when_the_gateway_is_unreachable(): void
+    {
+        $this->assertOrderSurvivesGatewayFailure(
+            fn () => throw new ConnectionException('Connection timed out')
+        );
+    }
+
+    private function assertOrderSurvivesGatewayFailure(mixed $midtransStub): void
+    {
+        Http::fake([
+            'api.biteship.com/v1/rates/couriers' => Http::response($this->ratesResponse()),
+            'api.sandbox.midtrans.com/*' => $midtransStub,
+        ]);
+        $this->createOrigin();
+
+        $user = $this->customer();
+        $item = $this->createCartItemForUser($user, quantity: 2);
+        $address = $this->createAddress($user, self::DESTINATION_AREA);
+
+        $response = $this->actingAs($user)->post('/checkout', $this->payload($address));
+
+        $order = Order::query()->where('user_id', $user->id)->firstOrFail();
+
+        $response->assertRedirect(route('orders.show', $order->order_code));
+        $response->assertSessionHas('error');
+
+        $this->assertSame(0.0, (float) $order->payment_fee);
+        $this->assertSame(317000.0, (float) $order->total);
+        $this->assertDatabaseMissing('payments', ['order_id' => $order->id]);
+        $this->assertSame(8, $item->variant()->first()->stock);
+    }
+
     private function payload(Address $address, array $overrides = []): array
     {
         return array_merge([
@@ -209,6 +333,7 @@ class CheckoutFlowTest extends TestCase
             'notes' => 'Tolong dibungkus rapi.',
             'shipping_courier_code' => 'jnt',
             'shipping_service_code' => 'ez',
+            'payment_method' => 'bca_va',
             'agree_terms' => true,
         ], $overrides);
     }
@@ -246,7 +371,24 @@ class CheckoutFlowTest extends TestCase
     {
         Http::fake([
             'api.biteship.com/v1/rates/couriers' => Http::response($this->ratesResponse()),
+            'api.sandbox.midtrans.com/v2/charge' => Http::response($this->chargeResponse()),
         ]);
+    }
+
+    private function chargeResponse(): array
+    {
+        return [
+            'status_code' => '201',
+            'status_message' => 'Success, Bank Transfer transaction is created',
+            'transaction_id' => 'fd391aca-6af0-4179-8bb9-46f8d9a488c5',
+            'transaction_status' => 'pending',
+            'fraud_status' => 'accept',
+            'payment_type' => 'bank_transfer',
+            'va_numbers' => [
+                ['bank' => 'bca', 'va_number' => '95073296922772990300925'],
+            ],
+            'expiry_time' => '2026-10-25 13:05:59',
+        ];
     }
 
     private function customer(): User

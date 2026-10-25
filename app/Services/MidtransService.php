@@ -111,12 +111,23 @@ class MidtransService
 
     public function cancel(string $gatewayOrderId): array
     {
-        $data = $this->send(
-            'post',
-            '/v2/'.rawurlencode($gatewayOrderId).'/cancel',
-            [],
-            ['200', '201'],
-        );
+        $path = '/v2/'.rawurlencode($gatewayOrderId).'/cancel';
+
+        try {
+            $data = $this->send('post', $path, [], ['200', '201']);
+        } catch (RuntimeException $e) {
+            try {
+                $current = $this->status($gatewayOrderId);
+            } catch (RuntimeException) {
+                throw $e;
+            }
+
+            if (in_array($current['gateway_status'], ['cancel', 'expire', 'deny', 'failure'], true)) {
+                return $current;
+            }
+
+            throw $e;
+        }
 
         return $this->normalize($data);
     }
@@ -161,7 +172,11 @@ class MidtransService
 
         try {
             $client = $this->client();
-            $response = $verb === 'get' ? $client->get($path) : $client->post($path, $body);
+           $response = match (true) {
+                $verb === 'get' => $client->get($path),
+                $body === [] => $client->send('POST', $path),
+                default => $client->post($path, $body),
+            };
         } catch (ConnectionException $e) {
             Log::warning('Midtrans tidak dapat dihubungi', ['path' => $path, 'error' => $e->getMessage()]);
 

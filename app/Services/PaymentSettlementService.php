@@ -40,7 +40,18 @@ class PaymentSettlementService
             $order = Order::query()->whereKey($payment->order_id)->lockForUpdate()->firstOrFail();
             $payment = Payment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
 
-            if ($payment->status === Payment::STATUS_PAID && $status !== Payment::STATUS_REFUNDED) {
+            // Payment yang sudah paid atau sudah ditandai refund_required tidak boleh
+            // diubah lagi oleh notifikasi apa pun selain refund.
+            if (
+                in_array($payment->status, [Payment::STATUS_PAID, Payment::STATUS_REFUND_REQUIRED], true)
+                && $status !== Payment::STATUS_REFUNDED
+            ) {
+                $payment->forceFill(['last_webhook_at' => now()])->save();
+
+                return $payment;
+            }
+
+            if ($payment->isFinal() && $status === Payment::STATUS_PENDING) {
                 $payment->forceFill(['last_webhook_at' => now()])->save();
 
                 return $payment;
@@ -67,9 +78,7 @@ class PaymentSettlementService
             if ($status === Payment::STATUS_PAID) {
                 $this->markOrderPaid($order, $payment, $isLatest);
             } elseif ($status === Payment::STATUS_REFUNDED) {
-                if ($order->payment_status === 'paid') {
-                    $order->update(['payment_status' => 'refunded']);
-                }
+                $this->markOrderRefunded($order, $payment);
             } elseif (
                 $status === Payment::STATUS_EXPIRED
                 && $isLatest
@@ -86,16 +95,17 @@ class PaymentSettlementService
 
     private function markOrderPaid(Order $order, Payment $payment, bool $isLatest): void
     {
+        // Order sudah dibayar oleh payment lain: uang ini kelebihan.
+        // Order tetap paid, hanya payment ini yang perlu direfund.
         if ($order->payment_status === 'paid') {
+            $this->flagForRefund($order, $payment, 'duplicate_payment', false);
+
             return;
         }
 
+        // Order sudah ditutup (dibatalkan, kedaluwarsa, gagal): tidak diaktifkan lagi.
         if ($order->stock_released || $order->order_status === 'cancelled') {
-            Log::critical('Pembayaran masuk untuk order yang sudah ditutup, perlu refund manual', [
-                'order_code' => $order->order_code,
-                'gateway_order_id' => $payment->gateway_order_id,
-                'amount' => $payment->amount,
-            ]);
+            $this->flagForRefund($order, $payment, 'closed_order', true);
 
             return;
         }
@@ -123,6 +133,59 @@ class PaymentSettlementService
                 } catch (RuntimeException) {
                 }
             }
+        }
+    }
+
+    /**
+     * Menandai payment ini perlu direfund.
+     *
+     * Order hanya ikut ditandai kalau order itu memang sudah ditutup. Ditulis dengan
+     * saveQuietly() agar Order::syncRelatedStatuses() tidak menimpa status payment lain
+     * dan hook updating tidak terpicu (stok sudah dilepas sebelumnya).
+     */
+    private function flagForRefund(Order $order, Payment $payment, string $reason, bool $markOrder): void
+    {
+        $payment->forceFill(['status' => Payment::STATUS_REFUND_REQUIRED])->save();
+
+        if ($markOrder) {
+            $order->forceFill(['payment_status' => 'refund_required'])->saveQuietly();
+        }
+
+        Log::critical('Pembayaran masuk yang tidak bisa dipakai, perlu refund', [
+            'reason' => $reason,
+            'order_code' => $order->order_code,
+            'gateway_order_id' => $payment->gateway_order_id,
+            'amount' => $payment->amount,
+        ]);
+    }
+
+    /**
+     * Notifikasi refund hanya mengubah order kalau payment yang direfund memang
+     * yang menahan status order. Refund atas pembayaran ganda tidak boleh
+     * membuat order yang sah ikut jadi refunded.
+     */
+    private function markOrderRefunded(Order $order, Payment $payment): void
+    {
+        $others = Payment::query()
+            ->where('order_id', $order->id)
+            ->whereKeyNot($payment->id);
+
+        if ($order->payment_status === 'refund_required') {
+            if ((clone $others)->where('status', Payment::STATUS_REFUND_REQUIRED)->exists()) {
+                return;
+            }
+
+            $order->forceFill(['payment_status' => 'refunded'])->saveQuietly();
+
+            return;
+        }
+
+        if ($order->payment_status === 'paid') {
+            if ((clone $others)->where('status', Payment::STATUS_PAID)->exists()) {
+                return;
+            }
+
+            $order->update(['payment_status' => 'refunded']);
         }
     }
 }

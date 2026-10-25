@@ -15,6 +15,7 @@ class Payment extends Model
     public const STATUS_FAILED = 'failed';
     public const STATUS_EXPIRED = 'expired';
     public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_REFUND_REQUIRED = 'refund_required';
     public const STATUS_REFUNDED = 'refunded';
 
     protected $fillable = [
@@ -74,6 +75,11 @@ class Payment extends Model
         return $this->status === self::STATUS_PAID;
     }
 
+    public function needsRefund(): bool
+    {
+        return $this->status === self::STATUS_REFUND_REQUIRED;
+    }
+
     public function isFinal(): bool
     {
         return in_array($this->status, [
@@ -81,6 +87,7 @@ class Payment extends Model
             self::STATUS_FAILED,
             self::STATUS_EXPIRED,
             self::STATUS_CANCELLED,
+            self::STATUS_REFUND_REQUIRED,
             self::STATUS_REFUNDED,
         ], true);
     }

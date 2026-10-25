@@ -78,9 +78,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/orders/{orderCode}', [OrderController::class, 'show'])
         ->name('orders.show');
 
-    Route::post('/orders/{orderCode}/payment-proof', [PaymentController::class, 'uploadProof'])
-        ->middleware('throttle:5,1')
-        ->name('orders.payment-proof');
+   Route::post('/orders/{orderCode}/cancel', [OrderController::class, 'cancel'])
+       ->middleware('throttle:6,1')
+       ->name('orders.cancel');
+
+    Route::post('/orders/{orderCode}/reorder', [OrderController::class, 'reorder'])
+        ->middleware('throttle:10,1')
+        ->name('orders.reorder');
 
     Route::post('/orders/{orderCode}/pay', [PaymentController::class, 'pay'])
         ->middleware('throttle:6,1')

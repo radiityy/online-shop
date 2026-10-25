@@ -2,12 +2,19 @@
 
 namespace App\Filament\Resources\Orders\Tables;
 
+use App\Models\Order;
+use App\Models\Payment;
+use App\Services\PaymentSettlementService;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class OrdersTable
 {
@@ -38,7 +45,8 @@ class OrdersTable
                     ->formatStateUsing(fn (string $state): string => str_replace('_', ' ', strtoupper($state)))
                     ->color(fn (string $state): string => match ($state) {
                         'paid' => 'success',
-                        'failed', 'expired', 'refunded' => 'danger',
+                        'refund_required', 'failed', 'expired' => 'danger',
+                        'refunded' => 'gray',
                         'waiting_confirmation' => 'info',
                         default => 'warning',
                     })
@@ -79,6 +87,13 @@ class OrdersTable
                     ->sortable(),
             ])
             ->filters([
+                Filter::make('needs_refund')
+                    ->label('Needs refund')
+                    ->query(fn (Builder $query): Builder => $query->where(function (Builder $query): void {
+                        $query->where('payment_status', 'refund_required')
+                            ->orWhereHas('payments', fn (Builder $payments) => $payments->where('status', Payment::STATUS_REFUND_REQUIRED));
+                    })),
+
                 SelectFilter::make('payment_status')
                     ->label('Payment Status')
                     ->options([
@@ -87,6 +102,7 @@ class OrdersTable
                         'paid' => 'Paid',
                         'failed' => 'Failed',
                         'expired' => 'Expired',
+                        'refund_required' => 'Refund Required',
                         'refunded' => 'Refunded',
                     ]),
 
@@ -115,6 +131,25 @@ class OrdersTable
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
+
+                Action::make('markRefunded')
+                    ->label('Mark as refunded')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Mark refund as completed?')
+                    ->modalDescription('Only confirm after the money has really been returned to the customer, for example by manual bank transfer for a Virtual Account payment.')
+                    ->modalSubmitActionLabel('Yes, money returned')
+                    ->visible(fn (Order $record): bool => $record->payment_status === 'refund_required'
+                        || $record->payments()->where('status', Payment::STATUS_REFUND_REQUIRED)->exists())
+                    ->action(function (Order $record): void {
+                        app(PaymentSettlementService::class)->markRefundedManually($record);
+
+                        Notification::make()
+                            ->title('Refund marked as completed')
+                            ->success()
+                            ->send();
+                    }),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

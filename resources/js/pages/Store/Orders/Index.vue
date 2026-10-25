@@ -69,6 +69,10 @@ const formatDate = (date: string) => {
 };
 
 const statusLabel = (status: string) => {
+    if (status === 'refund_required') {
+        return 'REFUND IN PROGRESS';
+    }
+
     return status.replaceAll('_', ' ').toUpperCase();
 };
 
@@ -85,11 +89,19 @@ const statusClass = (status: string) => {
         return 'bg-yellow-100 text-yellow-700';
     }
 
+    if (status === 'refund_required') {
+        return 'bg-orange-100 text-orange-700';
+    }
+
     if (['failed', 'expired', 'cancelled', 'refunded', 'returned'].includes(status)) {
         return 'bg-red-100 text-red-700';
     }
 
     return 'bg-neutral-100 text-neutral-700';
+};
+
+const canContinuePayment = (order: Order) => {
+    return order.payment_status === 'pending' && order.order_status !== 'cancelled';
 };
 </script>
 
@@ -157,6 +169,21 @@ const statusClass = (status: string) => {
                                 >
                                     Shipping: {{ statusLabel(order.shipping_status) }}
                                 </span>
+                            </div>
+
+                            <div
+                                v-if="order.payment_status === 'refund_required'"
+                                class="mt-5 border border-orange-300 bg-orange-50 p-5 text-sm leading-7 text-orange-900"
+                            >
+                                <p class="text-xs font-black uppercase tracking-[0.22em]">
+                                    Refund in progress
+                                </p>
+
+                                <p class="mt-2">
+                                    We received your payment after this order was already closed, so it could
+                                    not be processed. Your money will be returned to you. If you still want
+                                    these items, you can place a new order from the order detail page.
+                                </p>
                             </div>
 
                             <div class="mt-5 grid gap-3 text-sm text-neutral-600 md:grid-cols-3">
@@ -236,7 +263,7 @@ const statusClass = (status: string) => {
                                 </Link>
 
                                 <Link
-                                    v-if="order.payment_status !== 'paid'"
+                                    v-if="canContinuePayment(order)"
                                     :href="`/orders/${order.order_code}`"
                                     class="inline-flex justify-center border border-neutral-950 bg-white px-7 py-4 text-xs font-black uppercase tracking-[0.22em] text-neutral-950 transition hover:bg-neutral-950 hover:text-white"
                                 >

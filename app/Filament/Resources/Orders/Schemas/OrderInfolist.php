@@ -36,7 +36,8 @@ class OrderInfolist
                                     ->formatStateUsing(fn (string $state): string => str_replace('_', ' ', strtoupper($state)))
                                     ->color(fn (string $state): string => match ($state) {
                                         'paid' => 'success',
-                                        'failed', 'expired', 'refunded' => 'danger',
+                                        'refund_required', 'failed', 'expired' => 'danger',
+                                        'refunded' => 'gray',
                                         'waiting_confirmation' => 'info',
                                         default => 'warning',
                                     }),
@@ -150,7 +151,8 @@ class OrderInfolist
                                     ->formatStateUsing(fn (?string $state): string => $state ? str_replace('_', ' ', strtoupper($state)) : '-')
                                     ->color(fn (?string $state): string => match ($state) {
                                         'paid' => 'success',
-                                        'failed', 'expired', 'refunded' => 'danger',
+                                        'refund_required', 'failed', 'expired' => 'danger',
+                                        'refunded' => 'gray',
                                         'waiting_confirmation' => 'info',
                                         default => 'warning',
                                     }),
@@ -166,6 +168,47 @@ class OrderInfolist
                                     ->placeholder('No proof uploaded')
                                     ->columnSpanFull(),
                             ]),
+                    ])
+                    ->columnSpanFull(),
+
+                Section::make('Payment Attempts')
+                    ->description('Every payment attempt for this order. Payments marked Refund Required still need their money returned to the customer.')
+                    ->schema([
+                        RepeatableEntry::make('payments')
+                            ->label('')
+                            ->schema([
+                                Grid::make(5)
+                                    ->schema([
+                                        TextEntry::make('payment_method')
+                                            ->label('Method')
+                                            ->formatStateUsing(fn (?string $state): string => $state ? str_replace('_', ' ', strtoupper($state)) : '-'),
+
+                                        TextEntry::make('gateway_order_id')
+                                            ->label('Gateway Order ID')
+                                            ->placeholder('-'),
+
+                                        TextEntry::make('amount')
+                                            ->label('Amount')
+                                            ->money('IDR'),
+
+                                        TextEntry::make('status')
+                                            ->label('Status')
+                                            ->badge()
+                                            ->formatStateUsing(fn (?string $state): string => $state ? str_replace('_', ' ', strtoupper($state)) : '-')
+                                            ->color(fn (?string $state): string => match ($state) {
+                                                'paid' => 'success',
+                                                'refund_required', 'failed' => 'danger',
+                                                'refunded', 'cancelled', 'expired' => 'gray',
+                                                default => 'warning',
+                                            }),
+
+                                        TextEntry::make('paid_at')
+                                            ->label('Paid At')
+                                            ->dateTime('d M Y H:i')
+                                            ->placeholder('-'),
+                                    ]),
+                            ])
+                            ->columnSpanFull(),
                     ])
                     ->columnSpanFull(),
 

@@ -11,9 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\File;
 use RuntimeException;
 
 class PaymentController extends Controller
@@ -24,13 +22,20 @@ class PaymentController extends Controller
     ) {
     }
 
+    /**
+     * Pilih atau ganti metode bayar.
+     *
+     * Dasar hitung biaya adalah (total - payment_fee) supaya biaya tidak
+     * terhitung dua kali. Waktu bayar TIDAK diperpanjang: transaksi baru
+     * memakai sisa waktu dari payment_expires_at.
+     */
     public function pay(Request $request, string $orderCode): RedirectResponse
     {
         $validated = $request->validate([
             'method' => ['required', 'string', Rule::in(array_keys($this->midtrans->methods()))],
         ], [
-            'method.required' => 'Pilih metode pembayaran.',
-            'method.in' => 'Metode pembayaran tidak tersedia.',
+            'method.required' => 'Please choose a payment method.',
+            'method.in' => 'That payment method is not available.',
         ]);
 
         $methodKey = $validated['method'];
@@ -41,7 +46,7 @@ class PaymentController extends Controller
             ->firstOrFail();
 
         if ($order->payment_expires_at === null) {
-            return back()->with('error', 'Pesanan ini memakai transfer manual.');
+            return back()->with('error', 'This order cannot be paid online.');
         }
 
         try {
@@ -59,9 +64,10 @@ class PaymentController extends Controller
 
                 if ($previous && $previous->gateway && $previous->isPending()) {
                     if ($previous->payment_method === $methodKey) {
-                        return ['info' => 'Metode pembayaran ini sudah dipilih.'];
+                        return ['info' => 'You have already selected this payment method.'];
                     }
 
+                    // Pastikan pembayaran sebelumnya belum masuk sebelum diganti.
                     try {
                         $this->settlement->apply(
                             $previous,
@@ -74,7 +80,7 @@ class PaymentController extends Controller
                     $previous->refresh();
 
                     if ($locked->payment_status === 'paid') {
-                        return ['info' => 'Pembayaran sudah kami terima. Terima kasih!'];
+                        return ['info' => 'We have already received your payment. Thank you!'];
                     }
 
                     if ($error = $this->payableError($locked)) {
@@ -82,9 +88,14 @@ class PaymentController extends Controller
                     }
                 }
 
+                // total sudah memuat biaya metode sebelumnya, jadi dasar hitung = total - payment_fee.
                 $total = (int) round((float) $locked->total);
-                $fee = $this->midtrans->feeFor($methodKey, $total);
-                $amount = $total + $fee;
+                $currentFee = (int) round((float) $locked->payment_fee);
+                $base = max(0, $total - $currentFee);
+
+                $fee = $this->midtrans->feeFor($methodKey, $base);
+                $amount = $base + $fee;
+
                 $attempt = Payment::query()->where('order_id', $locked->id)->count() + 1;
                 $gatewayOrderId = $locked->order_code.'-'.$attempt;
                 $minutes = max(1, (int) floor(now()->diffInMinutes($locked->payment_expires_at, false)));
@@ -125,6 +136,12 @@ class PaymentController extends Controller
                     'raw_response' => $charge['raw'],
                 ]);
 
+                // Order mengikuti metode terbaru: fee dan total diperbarui.
+                $locked->update([
+                    'payment_fee' => $fee,
+                    'total' => $amount,
+                ]);
+
                 if ($previous && $previous->gateway && $previous->isPending()) {
                     try {
                         $this->midtrans->cancel($previous->gateway_order_id);
@@ -151,11 +168,17 @@ class PaymentController extends Controller
             return back()->with('success', $result['info']);
         }
 
-        return back()->with('success', 'Metode pembayaran dipilih. Selesaikan pembayaran sebelum waktu habis.');
+        return back()->with('success', 'Payment method selected. Complete your payment before the timer runs out.');
     }
 
-    public function refresh(string $orderCode): RedirectResponse
+    /**
+     * Cek status ke Midtrans. Dengan silent=1 (polling otomatis dari halaman)
+     * tidak ada pesan flash, supaya pelanggan tidak diganggu notifikasi berulang.
+     */
+    public function refresh(Request $request, string $orderCode): RedirectResponse
     {
+        $silent = $request->boolean('silent');
+
         $order = Order::query()
             ->where('order_code', $orderCode)
             ->where('user_id', Auth::id())
@@ -164,89 +187,26 @@ class PaymentController extends Controller
         $payment = $order->payments()->first();
 
         if (! $payment || ! $payment->gateway) {
-            return back()->with('error', 'Belum ada transaksi pembayaran untuk pesanan ini.');
+            return $silent ? back() : back()->with('error', 'There is no payment to check yet.');
+        }
+
+        if (! $payment->isPending()) {
+            return $silent ? back() : back()->with('success', 'Payment status is up to date.');
         }
 
         try {
             $this->settlement->apply($payment, $this->midtrans->status($payment->gateway_order_id));
         } catch (RuntimeException $exception) {
-            return back()->with('error', $exception->getMessage());
+            return $silent ? back() : back()->with('error', $exception->getMessage());
         }
 
-        return back()->with('success', 'Status pembayaran diperbarui.');
-    }
-
-    public function uploadProof(Request $request, string $orderCode): RedirectResponse
-    {
-        $validated = $request->validate([
-            'proof_image' => [
-                'required',
-                File::image()
-                    ->types(['jpg', 'jpeg', 'png', 'webp'])
-                    ->max(2048),
-                'dimensions:max_width=6000,max_height=6000',
-            ],
-        ]);
-
-        $order = Order::query()
-            ->with('payment')
-            ->where('order_code', $orderCode)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
-
-        if (! $order->payment || $order->payment->gateway || $order->payment_expires_at !== null) {
-            return back()->withErrors([
-                'proof_image' => 'Payment proof upload is not available for this order.',
-            ]);
-        }
-
-        if (in_array($order->payment_status, ['paid', 'failed', 'expired', 'refunded'], true)) {
-            return back()->withErrors([
-                'proof_image' => 'Payment proof upload is no longer available for this order.',
-            ]);
-        }
-
-        if ($order->order_status === 'cancelled') {
-            return back()->withErrors([
-                'proof_image' => 'This order has been cancelled and cannot receive payment proof.',
-            ]);
-        }
-
-        if ($order->shipping_status === 'returned') {
-            return back()->withErrors([
-                'proof_image' => 'This order has been returned and cannot receive payment proof.',
-            ]);
-        }
-
-        $oldProofImage = $order->payment->proof_image;
-        $newProofImage = $validated['proof_image']->store('payment-proofs', 'public');
-
-        try {
-            $order->payment->update([
-                'proof_image' => $newProofImage,
-                'status' => 'waiting_confirmation',
-            ]);
-
-            $order->update([
-                'payment_status' => 'waiting_confirmation',
-            ]);
-
-            if ($oldProofImage) {
-                Storage::disk('public')->delete($oldProofImage);
-            }
-        } catch (\Throwable $exception) {
-            Storage::disk('public')->delete($newProofImage);
-
-            throw $exception;
-        }
-
-        return back()->with('success', 'Payment proof uploaded. We are checking your payment now.');
+        return $silent ? back() : back()->with('success', 'Payment status updated.');
     }
 
     private function payableError(Order $order): ?string
     {
         if ($order->payment_status === 'paid') {
-            return 'Pesanan ini sudah dibayar.';
+            return 'This order has already been paid.';
         }
 
         if (
@@ -255,15 +215,15 @@ class PaymentController extends Controller
             || $order->shipping_status === 'returned'
             || $order->stock_released
         ) {
-            return 'Pesanan ini tidak lagi dapat dibayar.';
+            return 'This order can no longer be paid.';
         }
 
         if (! $order->payment_expires_at || $order->payment_expires_at->isPast()) {
-            return 'Waktu pembayaran sudah habis. Silakan buat pesanan baru.';
+            return 'The payment time has ended. Please place a new order.';
         }
 
         if ($order->payment_expires_at->lte(now()->addMinutes(2))) {
-            return 'Waktu pembayaran hampir habis, jadi metode baru tidak bisa dibuat. Selesaikan pembayaran yang sudah dipilih.';
+            return 'There is too little time left to start a new payment. If you already chose a method, please complete that payment.';
         }
 
         return null;

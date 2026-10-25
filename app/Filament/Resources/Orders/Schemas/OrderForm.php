@@ -31,6 +31,7 @@ class OrderForm
                                         'paid' => 'Paid',
                                         'failed' => 'Failed',
                                         'expired' => 'Expired',
+                                        'refund_required' => 'Refund Required',
                                         'refunded' => 'Refunded',
                                     ])
                                     ->required(),
