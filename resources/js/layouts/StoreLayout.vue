@@ -14,6 +14,22 @@ type PageProps = {
     };
 };
 
+type NotificationPreview = {
+    id: number;
+    type: string;
+    title: string;
+    message: string;
+    is_read: boolean;
+    created_at: string | null;
+    order: {
+        order_code: string;
+        product: {
+            name: string;
+            image: string;
+        } | null;
+    } | null;
+};
+
 type MenuItem = {
     label: string;
     href: string;
@@ -84,6 +100,33 @@ const isScrolled = ref(false);
 const isSearchOpen = ref(false);
 const searchKeyword = ref('');
 const isPageLoading = ref(false);
+const isNotificationsOpen = ref(false);
+const isLoadingNotifications = ref(false);
+const hasNotificationsError = ref(false);
+const latestNotifications = ref<NotificationPreview[]>([]);
+const openingNotificationId = ref<number | null>(null);
+const notificationsRoot = ref<HTMLElement | null>(null);
+
+let latestRequestId = 0;
+
+const NOTIFICATION_TIME_ZONE = 'Asia/Jakarta';
+
+const notificationTimeFormat = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: NOTIFICATION_TIME_ZONE,
+});
+
+const negativeNotificationTypes = ['payment_failed', 'payment_expired', 'order_cancelled', 'refund_required'];
+
+const isNegativeNotification = (type: string) => negativeNotificationTypes.includes(type);
+
+const formatNotificationTime = (date: string | null) =>
+    date ? `${notificationTimeFormat.format(new Date(date))} WIB` : '';
 
 const menuGroups: MenuGroup[] = [
     {
@@ -119,18 +162,106 @@ const closeMenus = () => {
     isShopOpen.value = false;
     isAccountOpen.value = false;
     isMobileMenuOpen.value = false;
+    isNotificationsOpen.value = false;
 };
 
 const toggleMobileMenu = () => {
     isMobileMenuOpen.value = !isMobileMenuOpen.value;
     isShopOpen.value = false;
     isAccountOpen.value = false;
+    isNotificationsOpen.value = false;
+};
+
+const toggleAccount = () => {
+    isAccountOpen.value = !isAccountOpen.value;
+    isNotificationsOpen.value = false;
+};
+
+const loadLatestNotifications = async () => {
+    latestRequestId += 1;
+
+    const requestId = latestRequestId;
+
+    isLoadingNotifications.value = true;
+    hasNotificationsError.value = false;
+
+    try {
+        const response = await fetch('/notifications/latest', {
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('Request failed');
+        }
+
+        const data = await response.json();
+
+        if (requestId === latestRequestId) {
+            latestNotifications.value = Array.isArray(data.notifications) ? data.notifications : [];
+        }
+    } catch {
+        if (requestId === latestRequestId) {
+            hasNotificationsError.value = true;
+        }
+    } finally {
+        if (requestId === latestRequestId) {
+            isLoadingNotifications.value = false;
+        }
+    }
+};
+
+const toggleNotifications = () => {
+    const willOpen = !isNotificationsOpen.value;
+
+    isShopOpen.value = false;
+    isAccountOpen.value = false;
+    isNotificationsOpen.value = willOpen;
+
+    if (willOpen) {
+        loadLatestNotifications();
+    }
+};
+
+const openLatestNotification = (notification: NotificationPreview) => {
+    if (openingNotificationId.value !== null) {
+        return;
+    }
+
+    openingNotificationId.value = notification.id;
+
+    router.post(
+        `/notifications/${notification.id}/read`,
+        {},
+        {
+            onFinish: () => {
+                openingNotificationId.value = null;
+                isNotificationsOpen.value = false;
+            },
+        },
+    );
+};
+
+const handleDocumentClick = (event: MouseEvent) => {
+    if (!isNotificationsOpen.value) {
+        return;
+    }
+
+    const target = event.target as Node | null;
+
+    if (target && notificationsRoot.value && !notificationsRoot.value.contains(target)) {
+        isNotificationsOpen.value = false;
+    }
 };
 
 const openSearch = async () => {
     isShopOpen.value = false;
     isAccountOpen.value = false;
     isMobileMenuOpen.value = false;
+    isNotificationsOpen.value = false;
 
     handleScroll();
 
@@ -172,6 +303,10 @@ const quickSearch = (keyword: string) => {
 const handleKeydown = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && isSearchOpen.value) {
         closeSearch();
+    }
+
+    if (event.key === 'Escape' && isNotificationsOpen.value) {
+        isNotificationsOpen.value = false;
     }
 };
 
@@ -219,6 +354,7 @@ onMounted(() => {
     });
 
     window.addEventListener('keydown', handleKeydown);
+    document.addEventListener('click', handleDocumentClick);
 
     removeRouterStartListener = router.on('start', () => {
         isPageLoading.value = true;
@@ -232,6 +368,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
     window.removeEventListener('scroll', handleScroll);
     window.removeEventListener('keydown', handleKeydown);
+    document.removeEventListener('click', handleDocumentClick);
 
     removeRouterStartListener?.();
     removeRouterFinishListener?.();
@@ -520,42 +657,150 @@ onBeforeUnmount(() => {
                         </svg>
                     </button>
 
-                    <Link
-                        v-if="isLoggedIn"
-                        href="/notifications"
-                        aria-label="Notifications"
-                        class="relative transition hover:opacity-60"
-                        @click="closeMenus"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="h-6 w-6"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                    <div v-if="isLoggedIn" ref="notificationsRoot" class="relative">
+                        <button
+                            type="button"
+                            aria-label="Notifications"
+                            :aria-expanded="isNotificationsOpen"
+                            class="relative flex items-center transition hover:opacity-60"
+                            @click="toggleNotifications"
                         >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="1.8"
-                                d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0a3 3 0 0 1-6 0m6 0H9"
-                            />
-                        </svg>
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-6 w-6"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="1.8"
+                                    d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0a3 3 0 0 1-6 0m6 0H9"
+                                />
+                            </svg>
 
-                        <span
-                            v-if="unreadNotificationsCount > 0"
-                            class="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black leading-none text-white"
+                            <span
+                                v-if="unreadNotificationsCount > 0"
+                                class="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black leading-none text-white"
+                            >
+                                {{ unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount }}
+                            </span>
+                        </button>
+
+                        <div
+                            v-if="isNotificationsOpen"
+                            class="absolute right-0 top-full z-50 mt-5 w-[26rem] border border-neutral-200 bg-white text-neutral-950 shadow-2xl"
                         >
-                            {{ unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount }}
-                        </span>
-                    </Link>
+                            <p class="border-b border-neutral-200 px-5 py-4 text-[11px] font-black uppercase tracking-[0.22em] text-neutral-400">
+                                Latest Updates
+                            </p>
+
+                            <p
+                                v-if="isLoadingNotifications && !latestNotifications.length"
+                                class="px-5 py-10 text-center text-xs font-bold uppercase tracking-[0.18em] text-neutral-400"
+                            >
+                                Loading...
+                            </p>
+
+                            <div v-else-if="hasNotificationsError" class="px-5 py-10 text-center">
+                                <p class="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">
+                                    We could not load your updates.
+                                </p>
+
+                                <button
+                                    type="button"
+                                    class="mt-4 text-xs font-black uppercase tracking-[0.2em] underline underline-offset-8 transition hover:text-neutral-500"
+                                    @click="loadLatestNotifications"
+                                >
+                                    Try again
+                                </button>
+                            </div>
+
+                            <p
+                                v-else-if="!latestNotifications.length"
+                                class="px-5 py-10 text-center text-xs font-bold uppercase tracking-[0.18em] text-neutral-400"
+                            >
+                                No updates yet.
+                            </p>
+
+                            <div v-else class="max-h-[28rem] divide-y divide-neutral-200 overflow-y-auto">
+                                <button
+                                    v-for="notification in latestNotifications"
+                                    :key="notification.id"
+                                    type="button"
+                                    :disabled="openingNotificationId !== null"
+                                    class="flex w-full gap-4 border-l-4 px-5 py-4 text-left transition disabled:cursor-wait"
+                                    :class="
+                                        notification.is_read
+                                            ? 'border-transparent bg-white hover:bg-neutral-100'
+                                            : 'border-neutral-950 bg-neutral-100 hover:bg-neutral-200'
+                                    "
+                                    @click="openLatestNotification(notification)"
+                                >
+                                    <img
+                                        v-if="notification.order?.product"
+                                        :src="notification.order.product.image"
+                                        :alt="notification.order.product.name"
+                                        class="h-14 w-14 shrink-0 bg-neutral-200 object-cover"
+                                        loading="lazy"
+                                    />
+
+                                    <div
+                                        v-else
+                                        class="flex h-14 w-14 shrink-0 items-center justify-center bg-neutral-200 text-neutral-400"
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-6 w-6"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="1.6"
+                                                d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0a3 3 0 0 1-6 0m6 0H9"
+                                            />
+                                        </svg>
+                                    </div>
+
+                                    <div class="min-w-0 flex-1">
+                                        <p
+                                            class="text-xs font-black uppercase tracking-[0.12em]"
+                                            :class="isNegativeNotification(notification.type) ? 'text-red-600' : 'text-neutral-950'"
+                                        >
+                                            {{ notification.title }}
+                                        </p>
+
+                                        <p class="mt-1 line-clamp-2 text-sm font-medium normal-case leading-5 tracking-normal text-neutral-700">
+                                            {{ notification.message }}
+                                        </p>
+
+                                        <p class="mt-2 text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-400">
+                                            {{ formatNotificationTime(notification.created_at) }}
+                                        </p>
+                                    </div>
+                                </button>
+                            </div>
+
+                            <Link
+                                href="/notifications"
+                                class="block border-t border-neutral-200 px-5 py-4 text-center text-[11px] font-black uppercase tracking-[0.22em] transition hover:bg-neutral-950 hover:text-white"
+                                @click="closeMenus"
+                            >
+                                Show All
+                            </Link>
+                        </div>
+                    </div>
 
                     <div class="relative">
                         <button
                             type="button"
                             aria-label="Account"
                             class="flex items-center transition hover:opacity-60"
-                            @click="isAccountOpen = !isAccountOpen"
+                            @click="toggleAccount"
                         >
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -584,7 +829,7 @@ onBeforeUnmount(() => {
                                     class="block hover:text-neutral-500"
                                     @click="closeMenus"
                                 >
-                                    Akun Saya
+                                    My Account
                                 </Link>
 
                                 <Link
@@ -593,7 +838,7 @@ onBeforeUnmount(() => {
                                     class="block hover:text-neutral-500"
                                     @click="closeMenus"
                                 >
-                                    Riwayat Pesanan
+                                    Order History
                                 </Link>
 
                                 <Link
@@ -602,7 +847,7 @@ onBeforeUnmount(() => {
                                     class="flex items-center justify-between gap-3 hover:text-neutral-500"
                                     @click="closeMenus"
                                 >
-                                    <span>Notifikasi</span>
+                                    <span>Notifications</span>
 
                                     <span
                                         v-if="unreadNotificationsCount > 0"
@@ -618,7 +863,7 @@ onBeforeUnmount(() => {
                                     class="block hover:text-neutral-500"
                                     @click="closeMenus"
                                 >
-                                    Alamat Saya
+                                    My Addresses
                                 </Link>
 
                                 <Link
@@ -627,7 +872,7 @@ onBeforeUnmount(() => {
                                     class="block hover:text-neutral-500"
                                     @click="closeMenus"
                                 >
-                                    Keranjang
+                                    Cart
                                 </Link>
 
                                 <Link
@@ -656,7 +901,7 @@ onBeforeUnmount(() => {
                                     class="block text-left hover:text-neutral-500"
                                     @click="closeMenus"
                                 >
-                                    Keluar
+                                    Log Out
                                 </Link>
                             </div>
                         </div>
@@ -815,7 +1060,7 @@ onBeforeUnmount(() => {
                                 class="block text-left"
                                 @click="closeMenus"
                             >
-                                Keluar
+                                Log Out
                             </Link>
                         </div>
                     </div>

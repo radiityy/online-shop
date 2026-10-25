@@ -7,37 +7,64 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\OrderItem;
 use App\Models\ProductVariant;
 use App\Services\MidtransService;
+use App\Services\OrderNotificationService;
 use App\Services\PaymentSettlementService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use RuntimeException;
+use Throwable;
 
 class OrderController extends Controller
 {
+    private const STATUS_LABELS = [
+        'unpaid' => 'Unpaid',
+        'processing' => 'Processing',
+        'shipped' => 'Shipped',
+        'completed' => 'Completed',
+        'cancelled' => 'Cancelled',
+        'refund' => 'Refund',
+        'returned' => 'Returned',
+    ];
+
     public function __construct(
         private readonly MidtransService $midtrans,
         private readonly PaymentSettlementService $settlement,
+        private readonly OrderNotificationService $notifications,
     ) {
     }
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $status = $this->resolveStatus($request->query('status'));
+
         $orders = Order::query()
-            ->with(['payment', 'shipment'])
+            ->with([
+                'items' => fn ($items) => $items
+                    ->orderBy('id')
+                    ->with('product.primaryImage'),
+            ])
             ->withCount('items')
             ->where('user_id', Auth::id())
+            ->when($status !== null, fn (Builder $query) => $this->applyStatusFilter($query, $status))
             ->latest()
+            ->latest('id')
             ->paginate(10)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(fn (Order $order) => $this->present($order));
 
         return Inertia::render('Store/Orders/Index', [
             'orders' => $orders,
+            'status' => $status ?? 'all',
+            'statusOptions' => $this->statusOptions(),
         ]);
     }
 
@@ -56,8 +83,6 @@ class OrderController extends Controller
         $paymentMethods = [];
 
         if ($order->payment_expires_at !== null) {
-            // total sudah memuat biaya metode yang terpilih, jadi biaya per metode
-            // dihitung dari dasar (total - payment_fee) agar tidak terhitung dua kali.
             $base = max(
                 0,
                 (int) round((float) $order->total) - (int) round((float) $order->payment_fee),
@@ -95,14 +120,6 @@ class OrderController extends Controller
         ]);
     }
 
-    /**
-     * Pelanggan membatalkan order yang belum dibayar.
-     *
-     * Urutan sengaja hati-hati: cek status ke Midtrans dulu (siapa tahu uang sudah masuk),
-     * tutup transaksi di Midtrans, baru batalkan order (stok dilepas oleh hook model Order).
-     * Kalau Midtrans gagal ditutup, order TIDAK dibatalkan supaya tidak ada VA/QR yang
-     * masih bisa dibayar untuk order yang sudah batal.
-     */
     public function cancel(string $orderCode): RedirectResponse
     {
         $order = Order::query()
@@ -135,7 +152,6 @@ class OrderController extends Controller
                 ->first();
 
             if ($latest && $latest->gateway && $latest->isPending()) {
-                // Pastikan pembayaran belum masuk.
                 try {
                     $this->settlement->apply($latest, $this->midtrans->status($latest->gateway_order_id));
                 } catch (RuntimeException) {
@@ -171,6 +187,14 @@ class OrderController extends Controller
             return ['cancelled' => true];
         });
 
+        if (isset($result['cancelled'])) {
+            try {
+                $this->notifications->notifyOrderCancelled($order);
+            } catch (Throwable $exception) {
+                report($exception);
+            }
+        }
+
         $redirect = redirect()->route('orders.show', $orderCode);
 
         if (isset($result['error'])) {
@@ -184,13 +208,6 @@ class OrderController extends Controller
         return $redirect->with('success', 'Your order has been cancelled.');
     }
 
-    /**
-     * Memasukkan kembali item order yang batal/kedaluwarsa/gagal ke bag.
-     *
-     * Memakai harga dan stok saat ini (bag selalu menghitung harga langsung dari produk).
-     * Item yang sudah ada di bag tidak digandakan: jumlahnya hanya dinaikkan sampai
-     * sebanyak yang dulu dipesan, dan tidak pernah melebihi stok.
-     */
     public function reorder(string $orderCode): RedirectResponse
     {
         $order = Order::query()
@@ -293,6 +310,126 @@ class OrderController extends Controller
         }
 
         return redirect()->route('cart.index')->with('success', $message);
+    }
+
+    private function present(Order $order): array
+    {
+        $item = $order->items->first();
+        $status = $this->displayStatus($order);
+
+        return [
+            'id' => $order->id,
+            'order_code' => $order->order_code,
+            'created_at' => $order->created_at?->toIso8601String(),
+            'total' => (float) $order->total,
+            'items_count' => (int) $order->items_count,
+            'status' => $status,
+            'status_label' => self::STATUS_LABELS[$status],
+            'product' => $item ? [
+                'name' => $item->product_name,
+                'size' => $item->variant_name,
+                'price' => (float) $item->price,
+                'quantity' => (int) $item->quantity,
+                'image' => $this->imageUrl($item),
+            ] : null,
+        ];
+    }
+
+    private function displayStatus(Order $order): string
+    {
+        if (in_array($order->payment_status, ['refund_required', 'refunded'], true)) {
+            return 'refund';
+        }
+
+        if ($order->order_status === 'cancelled' || in_array($order->payment_status, ['failed', 'expired'], true)) {
+            return 'cancelled';
+        }
+
+        if ($order->shipping_status === 'returned') {
+            return 'returned';
+        }
+
+        if (in_array($order->order_status, ['delivered', 'completed'], true) || $order->shipping_status === 'delivered') {
+            return 'completed';
+        }
+
+        if ($order->order_status === 'shipped' || $order->shipping_status === 'shipped') {
+            return 'shipped';
+        }
+
+        if (in_array($order->payment_status, ['pending', 'waiting_confirmation'], true)) {
+            return 'unpaid';
+        }
+
+        return 'processing';
+    }
+
+    private function statusRules(): array
+    {
+        return [
+            'refund' => fn (Builder $query) => $query
+                ->whereIn('payment_status', ['refund_required', 'refunded']),
+
+            'cancelled' => fn (Builder $query) => $query
+                ->where(fn (Builder $group) => $group
+                    ->where('order_status', 'cancelled')
+                    ->orWhereIn('payment_status', ['failed', 'expired'])),
+
+            'returned' => fn (Builder $query) => $query
+                ->where('shipping_status', 'returned'),
+
+            'completed' => fn (Builder $query) => $query
+                ->where(fn (Builder $group) => $group
+                    ->whereIn('order_status', ['delivered', 'completed'])
+                    ->orWhere('shipping_status', 'delivered')),
+
+            'shipped' => fn (Builder $query) => $query
+                ->where(fn (Builder $group) => $group
+                    ->where('order_status', 'shipped')
+                    ->orWhere('shipping_status', 'shipped')),
+
+            'unpaid' => fn (Builder $query) => $query
+                ->whereIn('payment_status', ['pending', 'waiting_confirmation']),
+
+            'processing' => fn (Builder $query) => $query
+                ->whereNotIn('payment_status', ['pending', 'waiting_confirmation']),
+        ];
+    }
+
+    private function applyStatusFilter(Builder $query, string $status): void
+    {
+        foreach ($this->statusRules() as $key => $rule) {
+            if ($key === $status) {
+                $query->where(fn (Builder $group) => $rule($group));
+
+                return;
+            }
+
+            $query->whereNot(fn (Builder $group) => $rule($group));
+        }
+    }
+
+    private function resolveStatus(mixed $value): ?string
+    {
+        return is_string($value) && array_key_exists($value, self::STATUS_LABELS) ? $value : null;
+    }
+
+    private function statusOptions(): array
+    {
+        $options = [['value' => 'all', 'label' => 'All status']];
+
+        foreach (self::STATUS_LABELS as $value => $label) {
+            $options[] = ['value' => $value, 'label' => $label];
+        }
+
+        return $options;
+    }
+
+    private function imageUrl(OrderItem $item): string
+    {
+        $path = $item->product?->primaryImage?->image_path;
+
+        return $path ? '/storage/'.$path : '/placeholder-product.jpg';
     }
 
     private function canReorder(Order $order): bool

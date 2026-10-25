@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Store;
 use App\Http\Controllers\Controller;
 use App\Models\OrderItem;
 use App\Models\OrderNotification;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,33 +15,32 @@ use Inertia\Response;
 
 class NotificationController extends Controller
 {
+    private const DROPDOWN_LIMIT = 5;
+
     public function index(): Response
     {
-        $notifications = OrderNotification::query()
-            ->with([
-                'order' => fn ($query) => $query
-                    ->select('id', 'order_code', 'created_at')
-                    ->withCount('items')
-                    ->with([
-                        'items' => fn ($items) => $items
-                            ->orderBy('id')
-                            ->with('product.primaryImage'),
-                    ]),
-            ])
-            ->where('user_id', Auth::id())
-            ->latest()
+        $notifications = $this->query()
             ->paginate(10)
             ->withQueryString()
             ->through(fn (OrderNotification $notification) => $this->present($notification));
 
-        $unreadCount = OrderNotification::query()
-            ->where('user_id', Auth::id())
-            ->where('is_read', false)
-            ->count();
-
         return Inertia::render('Store/Notifications/Index', [
             'notifications' => $notifications,
-            'unreadCount' => $unreadCount,
+            'unreadCount' => $this->unreadCount(),
+        ]);
+    }
+
+    public function latest(): JsonResponse
+    {
+        $notifications = $this->query()
+            ->limit(self::DROPDOWN_LIMIT)
+            ->get()
+            ->map(fn (OrderNotification $notification) => $this->present($notification))
+            ->values();
+
+        return response()->json([
+            'notifications' => $notifications,
+            'unreadCount' => $this->unreadCount(),
         ]);
     }
 
@@ -67,6 +68,32 @@ class NotificationController extends Controller
             ]);
 
         return back();
+    }
+
+    private function query(): Builder
+    {
+        return OrderNotification::query()
+            ->with([
+                'order' => fn ($query) => $query
+                    ->select('id', 'order_code', 'created_at')
+                    ->withCount('items')
+                    ->with([
+                        'items' => fn ($items) => $items
+                            ->orderBy('id')
+                            ->with('product.primaryImage'),
+                    ]),
+            ])
+            ->where('user_id', Auth::id())
+            ->latest('created_at')
+            ->latest('id');
+    }
+
+    private function unreadCount(): int
+    {
+        return OrderNotification::query()
+            ->where('user_id', Auth::id())
+            ->where('is_read', false)
+            ->count();
     }
 
     private function present(OrderNotification $notification): array

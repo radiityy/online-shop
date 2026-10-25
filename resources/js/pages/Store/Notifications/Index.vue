@@ -102,143 +102,160 @@ const markAllAsRead = () => {
 <template>
     <StoreLayout>
         <main class="mx-auto max-w-[1200px] px-6 pb-20 pt-32 sm:px-10 lg:px-[4.5vw]">
-            <section class="mb-10 flex flex-col justify-between gap-5 md:flex-row md:items-end">
-                <div>
-                    <p class="text-xs font-black uppercase tracking-[0.3em] text-neutral-500">Notifications</p>
+            <section class="mx-auto mb-10 max-w-4xl">
+                <p class="text-xs font-black uppercase tracking-[0.3em] text-neutral-500">Notifications</p>
 
-                    <h1 class="mt-4 text-5xl font-black uppercase tracking-[-0.05em] md:text-7xl">Order Updates</h1>
+                <h1 class="mt-4 text-5xl font-black uppercase tracking-[-0.05em] md:text-7xl">Order Updates</h1>
 
-                    <p class="mt-4 max-w-2xl text-sm leading-7 text-neutral-600 md:text-base">
-                        Follow payment, refund, packing, shipment, and delivery updates for your NEVERENDING orders.
-                    </p>
-                </div>
-
-                <button
-                    v-if="props.unreadCount > 0"
-                    type="button"
-                    class="w-fit bg-neutral-950 px-6 py-4 text-xs font-black uppercase tracking-[0.2em] text-white transition hover:bg-neutral-800"
-                    @click="markAllAsRead"
-                >
-                    Mark All As Read
-                </button>
+                <p class="mt-4 max-w-2xl text-sm leading-7 text-neutral-600 md:text-base">
+                    Follow payment, refund, packing, shipment, and delivery updates for your NEVERENDING orders.
+                </p>
             </section>
 
-            <section v-if="notifications.data.length" class="mx-auto max-w-3xl space-y-5">
-                <article
-                    v-for="notification in notifications.data"
-                    :key="notification.id"
-                    class="border bg-white p-5 sm:p-6"
-                    :class="notification.is_read ? 'border-neutral-200' : 'border-neutral-950'"
-                >
-                    <div class="flex flex-col justify-between gap-1 sm:flex-row sm:items-start sm:gap-4">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <span
-                                v-if="!notification.is_read"
-                                class="inline-flex bg-neutral-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white"
-                            >
-                                New
-                            </span>
-
-                            <p
-                                class="text-sm font-black uppercase tracking-[0.12em]"
-                                :class="isNegative(notification.type) ? 'text-red-600' : 'text-neutral-950'"
-                            >
-                                Status: {{ notification.title }}
-                            </p>
-                        </div>
-
-                        <p class="shrink-0 text-[11px] font-bold uppercase tracking-[0.16em] text-neutral-400">
-                            {{ formatDateTime(notification.created_at) }}
-                        </p>
-                    </div>
-
-                    <p class="mt-3 text-sm font-bold leading-7 text-neutral-950">
-                        {{ notification.message }}
+            <section v-if="notifications.data.length" class="mx-auto max-w-4xl border border-neutral-200 bg-white">
+                <div class="flex items-center justify-between gap-4 border-b border-neutral-200 px-5 py-4 sm:px-6">
+                    <p class="text-[11px] font-black uppercase tracking-[0.2em] text-neutral-500">
+                        {{ props.unreadCount > 0 ? `${props.unreadCount} unread` : 'All read' }}
                     </p>
-
-                    <template v-if="notification.order">
-                        <div class="mt-5 flex items-start justify-between gap-4 border-t border-neutral-200 pt-5">
-                            <div class="min-w-0">
-                                <p
-                                    v-if="notification.order.product"
-                                    class="text-sm font-black uppercase tracking-[-0.01em]"
-                                >
-                                    {{ notification.order.product.name }}
-                                </p>
-
-                                <p
-                                    v-if="notification.order.product?.size"
-                                    class="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-neutral-500"
-                                >
-                                    Size {{ notification.order.product.size }}
-                                </p>
-
-                                <p
-                                    v-if="notification.order.extra_items > 0"
-                                    class="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-neutral-400"
-                                >
-                                    +{{ notification.order.extra_items }} more
-                                    {{ notification.order.extra_items === 1 ? 'item' : 'items' }}
-                                </p>
-
-                                <p class="mt-3 text-xs font-black uppercase tracking-[0.18em] text-neutral-500">
-                                    Order {{ notification.order.order_code }}
-                                </p>
-
-                                <p
-                                    v-if="notification.order.ordered_at"
-                                    class="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-neutral-400"
-                                >
-                                    Ordered {{ formatDate(notification.order.ordered_at) }}
-                                </p>
-                            </div>
-
-                            <img
-                                v-if="notification.order.product"
-                                :src="notification.order.product.image"
-                                :alt="notification.order.product.name"
-                                class="h-20 w-20 shrink-0 bg-neutral-100 object-cover"
-                                loading="lazy"
-                            />
-                        </div>
-
-                        <button
-                            type="button"
-                            :disabled="openingId !== null"
-                            class="group relative mt-5 flex w-full justify-center overflow-hidden border border-neutral-950 bg-white px-8 py-4 text-xs font-black uppercase tracking-[0.22em] transition-transform active:scale-[0.99] disabled:cursor-wait"
-                            @click="openNotification(notification)"
-                        >
-                            <span
-                                aria-hidden="true"
-                                class="absolute inset-0 bg-neutral-950 transition-all duration-500 ease-out"
-                                :class="
-                                    openingId === notification.id
-                                        ? 'translate-x-full opacity-0'
-                                        : 'translate-x-0 opacity-100 group-hover:translate-x-full group-hover:opacity-0'
-                                "
-                            />
-
-                            <span
-                                class="relative transition-colors duration-300"
-                                :class="openingId === notification.id ? 'text-neutral-950' : 'text-white group-hover:text-neutral-950'"
-                            >
-                                {{ openingId === notification.id ? 'Opening...' : 'View Order' }}
-                            </span>
-                        </button>
-                    </template>
 
                     <button
-                        v-else-if="!notification.is_read"
+                        v-if="props.unreadCount > 0"
                         type="button"
-                        class="mt-5 text-xs font-black uppercase tracking-[0.2em] text-neutral-500 underline underline-offset-8 transition hover:text-neutral-950"
-                        @click="openNotification(notification)"
+                        class="text-[11px] font-black uppercase tracking-[0.2em] text-neutral-950 underline underline-offset-8 transition hover:text-neutral-500"
+                        @click="markAllAsRead"
                     >
-                        Mark as read
+                        Mark All As Read
                     </button>
-                </article>
+                </div>
+
+                <div class="divide-y divide-neutral-200">
+                    <article
+                        v-for="notification in notifications.data"
+                        :key="notification.id"
+                        class="flex flex-col gap-4 border-l-4 p-5 sm:flex-row sm:items-start sm:gap-6 sm:p-6"
+                        :class="notification.is_read ? 'border-transparent bg-white' : 'border-neutral-950 bg-neutral-100'"
+                    >
+                        <div class="flex min-w-0 flex-1 gap-4">
+                            <img
+                                v-if="notification.order?.product"
+                                :src="notification.order.product.image"
+                                :alt="notification.order.product.name"
+                                class="h-20 w-20 shrink-0 bg-neutral-200 object-cover sm:h-24 sm:w-24"
+                                loading="lazy"
+                            />
+
+                            <div
+                                v-else
+                                class="flex h-20 w-20 shrink-0 items-center justify-center bg-neutral-200 text-neutral-400 sm:h-24 sm:w-24"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-8 w-8"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="1.6"
+                                        d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0a3 3 0 0 1-6 0m6 0H9"
+                                    />
+                                </svg>
+                            </div>
+
+                            <div class="min-w-0 flex-1">
+                                <p
+                                    class="text-sm font-black uppercase tracking-[0.12em]"
+                                    :class="isNegative(notification.type) ? 'text-red-600' : 'text-neutral-950'"
+                                >
+                                    Status: {{ notification.title }}
+                                </p>
+
+                                <p class="mt-2 text-sm leading-6 text-neutral-700">
+                                    {{ notification.message }}
+                                </p>
+
+                                <template v-if="notification.order">
+                                    <p
+                                        v-if="notification.order.product"
+                                        class="mt-3 text-xs font-black uppercase tracking-[0.1em] text-neutral-950"
+                                    >
+                                        {{ notification.order.product.name }}
+                                    </p>
+
+                                    <p class="mt-1 text-[11px] font-bold uppercase tracking-[0.14em] text-neutral-500">
+                                        <template v-if="notification.order.product?.size">
+                                            Size {{ notification.order.product.size }}
+                                            <span class="px-1 text-neutral-300">/</span>
+                                        </template>
+                                        <template v-if="notification.order.extra_items > 0">
+                                            +{{ notification.order.extra_items }} more
+                                            {{ notification.order.extra_items === 1 ? 'item' : 'items' }}
+                                            <span class="px-1 text-neutral-300">/</span>
+                                        </template>
+                                        Order {{ notification.order.order_code }}
+                                        <template v-if="notification.order.ordered_at">
+                                            <span class="px-1 text-neutral-300">/</span>
+                                            Ordered {{ formatDate(notification.order.ordered_at) }}
+                                        </template>
+                                    </p>
+                                </template>
+
+                                <p class="mt-3 text-[11px] font-bold uppercase tracking-[0.16em] text-neutral-400">
+                                    {{ formatDateTime(notification.created_at) }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="shrink-0 sm:w-44">
+                            <button
+                                v-if="notification.order"
+                                type="button"
+                                :disabled="openingId !== null"
+                                class="group relative flex w-full justify-center overflow-hidden border border-neutral-950 bg-white px-6 py-3.5 text-xs font-black uppercase tracking-[0.22em] transition-transform active:scale-[0.99] disabled:cursor-wait"
+                                @click="openNotification(notification)"
+                            >
+                                <span
+                                    aria-hidden="true"
+                                    class="absolute inset-0 bg-neutral-950 transition-all duration-500 ease-out"
+                                    :class="
+                                        openingId === notification.id
+                                            ? 'translate-x-full opacity-0'
+                                            : 'translate-x-0 opacity-100 group-hover:translate-x-full group-hover:opacity-0'
+                                    "
+                                />
+
+                                <span
+                                    class="relative transition-colors duration-300"
+                                    :class="
+                                        openingId === notification.id
+                                            ? 'text-neutral-950'
+                                            : 'text-white group-hover:text-neutral-950'
+                                    "
+                                >
+                                    {{ openingId === notification.id ? 'Opening...' : 'View Order' }}
+                                </span>
+                            </button>
+
+                            <button
+                                v-else-if="!notification.is_read"
+                                type="button"
+                                :disabled="openingId !== null"
+                                class="text-xs font-black uppercase tracking-[0.2em] text-neutral-500 underline underline-offset-8 transition hover:text-neutral-950"
+                                @click="openNotification(notification)"
+                            >
+                                Mark as read
+                            </button>
+                        </div>
+                    </article>
+                </div>
             </section>
 
-            <section v-else class="border border-dashed border-neutral-300 px-6 py-20 text-center">
+            <section
+                v-else
+                class="mx-auto max-w-4xl border border-dashed border-neutral-300 px-6 py-20 text-center"
+            >
                 <p class="text-xs font-black uppercase tracking-[0.3em] text-neutral-400">No Notifications</p>
 
                 <h2 class="mt-4 text-3xl font-black uppercase tracking-[-0.04em]">You're all caught up.</h2>

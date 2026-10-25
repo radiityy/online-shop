@@ -69,6 +69,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])
         ->name('notifications.read-all');
 
+        Route::get('/notifications/latest', [NotificationController::class, 'latest'])
+        ->middleware('throttle:60,1')
+        ->name('notifications.latest');
+
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])
         ->name('notifications.read');
 
