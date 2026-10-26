@@ -12,6 +12,7 @@ use App\Models\ProductVariant;
 use App\Services\MidtransService;
 use App\Services\OrderNotificationService;
 use App\Services\PaymentSettlementService;
+use App\Services\RefundAccountService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,7 @@ class OrderController extends Controller
         private readonly MidtransService $midtrans,
         private readonly PaymentSettlementService $settlement,
         private readonly OrderNotificationService $notifications,
+        private readonly RefundAccountService $refundAccounts,
     ) {
     }
 
@@ -116,6 +118,8 @@ class OrderController extends Controller
             'paymentMethods' => $paymentMethods,
             'customerEmail' => Auth::user()?->email,
             'canReorder' => $this->canReorder($order),
+            'refundAccounts' => $this->refundAccounts->presentFor($order),
+            'refundBanks' => $this->refundAccounts->bankOptions(),
             'serverNow' => now()->toIso8601String(),
         ]);
     }

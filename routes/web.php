@@ -11,6 +11,7 @@ use App\Http\Controllers\Store\NotificationController;
 use App\Http\Controllers\Store\OrderController;
 use App\Http\Controllers\Store\PageController;
 use App\Http\Controllers\Store\PaymentController;
+use App\Http\Controllers\Store\RefundAccountController;
 use App\Http\Controllers\Store\ProductController;
 use App\Http\Controllers\Store\ShippingController;
 use App\Http\Controllers\Store\WishlistController;
@@ -94,6 +95,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/orders/{orderCode}/reorder', [OrderController::class, 'reorder'])
         ->middleware('throttle:10,1')
         ->name('orders.reorder');
+
+    Route::post('/orders/{orderCode}/refund-accounts/{payment}', [RefundAccountController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('orders.refund-account.store');
 
     Route::post('/orders/{orderCode}/pay', [PaymentController::class, 'pay'])
         ->middleware('throttle:6,1')

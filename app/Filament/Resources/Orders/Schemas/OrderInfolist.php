@@ -8,6 +8,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use App\Models\Order;
 
 class OrderInfolist
 {
@@ -206,6 +207,58 @@ class OrderInfolist
                                             ->label('Paid At')
                                             ->dateTime('d M Y H:i')
                                             ->placeholder('-'),
+
+                                        TextEntry::make('refund_reference')
+                                            ->label('Refund Reference')
+                                            ->placeholder('-'),
+                                    ]),
+                            ])
+                            ->columnSpanFull(),
+                    ])
+                    ->columnSpanFull(),
+
+                Section::make('Refund Account')
+                    ->description('Bank account the customer gave for a manual refund. The number is erased once the refund is marked as completed.')
+                    ->visible(fn (Order $record): bool => $record->refundAccounts()->exists())
+                    ->schema([
+                        RepeatableEntry::make('refundAccounts')
+                            ->label('')
+                            ->schema([
+                                Grid::make(3)
+                                    ->schema([
+                                        TextEntry::make('bank_code')
+                                            ->label('Bank')
+                                            ->formatStateUsing(fn (?string $state): string => (string) config("refund.banks.{$state}.label", strtoupper((string) $state))),
+
+                                        TextEntry::make('account_number')
+                                            ->label('Account Number')
+                                            ->copyable()
+                                            ->placeholder('Erased'),
+
+                                        TextEntry::make('account_holder')
+                                            ->label('Account Holder')
+                                            ->copyable()
+                                            ->placeholder('Erased'),
+
+                                        TextEntry::make('needs_review')
+                                            ->label('Name Check')
+                                            ->badge()
+                                            ->formatStateUsing(fn (bool $state): string => $state ? 'DIFFERENT, REVIEW' : 'MATCHES')
+                                            ->color(fn (bool $state): string => $state ? 'danger' : 'success'),
+
+                                        TextEntry::make('submitted_at')
+                                            ->label('Submitted')
+                                            ->dateTime('d M Y H:i')
+                                            ->placeholder('-'),
+
+                                        TextEntry::make('submitted_ip')
+                                            ->label('Submitted From IP')
+                                            ->placeholder('-'),
+
+                                        TextEntry::make('locked_at')
+                                            ->label('Locked At')
+                                            ->dateTime('d M Y H:i')
+                                            ->placeholder('Not locked yet'),
                                     ]),
                             ])
                             ->columnSpanFull(),

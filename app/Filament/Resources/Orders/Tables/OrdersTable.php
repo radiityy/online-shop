@@ -2,16 +2,14 @@
 
 namespace App\Filament\Resources\Orders\Tables;
 
+use App\Filament\Resources\Orders\Actions\MarkRefundedAction;
 use App\Filament\Resources\Orders\Actions\ProcessShipmentAction;
 use App\Filament\Resources\Orders\Actions\RetryRefundAction;
-use App\Models\Order;
+use App\Filament\Resources\Orders\Actions\StartRefundAction;
 use App\Models\Payment;
-use App\Services\PaymentSettlementService;
-use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -148,24 +146,8 @@ class OrdersTable
 
                 ProcessShipmentAction::make(),
                 RetryRefundAction::make(),
-                Action::make('markRefunded')
-                    ->label('Mark as refunded')
-                    ->icon('heroicon-o-banknotes')
-                    ->color('warning')
-                    ->requiresConfirmation()
-                    ->modalHeading('Mark refund as completed?')
-                    ->modalDescription('Only confirm after the money has really been returned to the customer, for example by manual bank transfer for a Virtual Account payment.')
-                    ->modalSubmitActionLabel('Yes, money returned')
-                    ->visible(fn (Order $record): bool => $record->payment_status === 'refund_required'
-                        || $record->payments()->where('status', Payment::STATUS_REFUND_REQUIRED)->exists())
-                    ->action(function (Order $record): void {
-                        app(PaymentSettlementService::class)->markRefundedManually($record);
-
-                        Notification::make()
-                            ->title('Refund marked as completed')
-                            ->success()
-                            ->send();
-                    }),
+                StartRefundAction::make(),
+                MarkRefundedAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

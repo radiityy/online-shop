@@ -94,7 +94,7 @@ class OrderNotificationService
         );
     }
 
-    public function notifyRefundRequired(Order $order, Payment $payment, bool $duplicate = false): void
+    public function notifyRefundRequired(Order $order, Payment $payment, bool $duplicate = false, bool $needsAccount = false): void
     {
         $amount = $this->money($payment);
 
@@ -102,11 +102,41 @@ class OrderNotificationService
             ? "We received a second payment of {$amount} for order {$order->order_code}, which is already paid. The extra payment will be returned to you. Your order is not affected."
             : "We received your payment of {$amount} for order {$order->order_code} after the order was closed, so it could not be processed. Your money will be returned to you. You can place a new order anytime.";
 
+        if ($needsAccount) {
+            $message .= ' Add your bank account on the order page so we can return your money.';
+        }
+
         $this->create(
             order: $order,
             type: 'refund_required',
             title: 'Refund In Progress',
             message: $message
+        );
+    }
+
+    public function notifyRefundAccountReminder(Order $order, Payment $payment): void
+    {
+        $amount = $this->money($payment);
+        $estimate = config('refund.estimate');
+
+        $this->create(
+            order: $order,
+            type: 'refund_account_reminder',
+            title: 'Refund Account Needed',
+            message: "We still need your bank account to return {$amount} for order {$order->order_code}. Open the order page and add it. We usually transfer the money within {$estimate} after we receive it."
+        );
+    }
+
+    public function notifyRefundAccountReceived(Order $order, Payment $payment): void
+    {
+        $amount = $this->money($payment);
+        $estimate = config('refund.estimate');
+
+        $this->create(
+            order: $order,
+            type: 'refund_account_received',
+            title: 'Refund Account Received',
+            message: "We received your bank account for the refund of {$amount} on order {$order->order_code}. We will transfer the money within {$estimate}, and we will notify you when it is done."
         );
     }
 

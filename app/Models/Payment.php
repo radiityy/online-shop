@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Payment extends Model
 {
@@ -41,6 +42,12 @@ class Payment extends Model
         'expires_at',
         'last_webhook_at',
         'raw_response',
+        'refund_reference',
+        'refund_note',
+        'refunded_at',
+        'refunded_by',
+        'account_reminded_at',
+        'account_reminders_sent',
     ];
 
     protected $hidden = [
@@ -56,6 +63,8 @@ class Payment extends Model
             'paid_at' => 'datetime',
             'expires_at' => 'datetime',
             'last_webhook_at' => 'datetime',
+            'refunded_at' => 'datetime',
+            'account_reminded_at' => 'datetime',
             'raw_response' => 'array',
         ];
     }
@@ -63,6 +72,11 @@ class Payment extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function refundAccount(): HasOne
+    {
+        return $this->hasOne(RefundAccount::class);
     }
 
     public function isPending(): bool

@@ -2,6 +2,7 @@
 import { Link, router, useForm } from '@inertiajs/vue3';
 import PaymentLogo from '@/components/PaymentLogo.vue';
 import PaymentPicker from '@/components/PaymentPicker.vue';
+import RefundAccountForm from '@/components/RefundAccountForm.vue';
 import StoreLayout from '@/layouts/StoreLayout.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -109,11 +110,33 @@ type Channel = {
     steps: string[];
 };
 
+type RefundAccountInfo = {
+    payment_id: number;
+    amount: number;
+    method: string;
+    state: 'needed' | 'submitted' | 'locked';
+    bank_code: string | null;
+    bank_label: string | null;
+    masked: string | null;
+    holder: string | null;
+    can_edit: boolean;
+    estimate: string;
+};
+
+type RefundBank = {
+    code: string;
+    label: string;
+    min: number;
+    max: number;
+};
+
 const props = defineProps<{
     order: Order;
     paymentMethods: PaymentMethod[];
     customerEmail: string | null;
     canReorder: boolean;
+    refundAccounts: RefundAccountInfo[];
+    refundBanks: RefundBank[];
     serverNow: string;
 }>();
 
@@ -206,6 +229,14 @@ const isPaid = computed(() => props.order.payment_status === 'paid');
 
 const closedInfo = computed<{ title: string; description: string } | null>(() => {
     const order = props.order;
+
+    if (order.payment_status === 'refund_required' && props.refundAccounts.length > 0) {
+        return {
+            title: 'Refund in progress',
+            description:
+                'We received your payment after this order was closed, so it could not be processed. Add your bank account below so we can return your money. You can place a new order anytime.',
+        };
+    }
 
     if (order.payment_status === 'refund_required') {
         return {
@@ -935,6 +966,14 @@ onBeforeUnmount(() => {
                             </Link>
                         </div>
                     </section>
+
+                    <RefundAccountForm
+                        v-for="account in refundAccounts"
+                        :key="account.payment_id"
+                        :order-code="order.order_code"
+                        :account="account"
+                        :banks="refundBanks"
+                    />
 
                     <section v-if="!isRefundState" class="border border-neutral-200 px-4 py-6 sm:px-8">
                         <ol class="grid grid-cols-5">

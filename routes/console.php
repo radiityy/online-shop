@@ -11,3 +11,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('shipments:sync-tracking')->hourly();
+
+Schedule::command('refunds:remind-accounts')->dailyAt('10:00')->withoutOverlapping();

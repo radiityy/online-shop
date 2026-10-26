@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Jobs\RefundLatePayment;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\RefundAccount;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -92,6 +93,8 @@ class PaymentSettlementService
             } elseif ($status === Payment::STATUS_REFUNDED) {
                 $this->markOrderRefunded($order, $payment);
 
+                RefundAccount::wipeFor([$payment->id]);
+
                 if ($previous !== Payment::STATUS_REFUNDED) {
                     $after[] = fn () => $this->notifications->notifyRefunded($order, $payment);
                 }
@@ -115,9 +118,9 @@ class PaymentSettlementService
         return $result;
     }
 
-    public function markRefundedManually(Order $order): bool
+    public function markRefundedManually(Order $order, ?string $reference = null, ?string $note = null): bool
     {
-        $refunded = DB::transaction(function () use ($order): ?array {
+        $refunded = DB::transaction(function () use ($order, $reference, $note): ?array {
             $locked = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
 
             $payments = Payment::query()
@@ -133,8 +136,17 @@ class PaymentSettlementService
             }
 
             foreach ($payments as $payment) {
-                $payment->forceFill(['status' => Payment::STATUS_REFUNDED])->save();
+                $payment->forceFill([
+                    'status' => Payment::STATUS_REFUNDED,
+                    'refund_reference' => $reference,
+                    'refund_note' => $note,
+                    'refunded_at' => now(),
+                    'refunded_by' => Auth::id(),
+                ])->save();
             }
+
+            // The refund is done, so the customer's bank details are erased.
+            RefundAccount::wipeFor($payments->pluck('id'));
 
             if ($orderNeedsRefund) {
                 $locked->forceFill(['payment_status' => 'refunded'])->saveQuietly();
@@ -146,6 +158,7 @@ class PaymentSettlementService
                 'order_code' => $locked->order_code,
                 'payment_ids' => $payments->pluck('id')->all(),
                 'amount' => $payments->sum(fn (Payment $payment) => (float) $payment->amount),
+                'reference' => $reference,
                 'admin_id' => Auth::id(),
             ]);
 
@@ -259,6 +272,7 @@ class PaymentSettlementService
             $order,
             $payment,
             $reason === 'duplicate_payment',
+            ! $this->midtrans->supportsRefund($payment->payment_type),
         );
 
         if ($this->midtrans->autoRefundEnabled() && $this->midtrans->supportsRefund($payment->payment_type)) {

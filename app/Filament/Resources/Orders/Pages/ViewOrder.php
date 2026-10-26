@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\Orders\Pages;
 
+use App\Filament\Resources\Orders\Actions\MarkRefundedAction;
 use App\Filament\Resources\Orders\Actions\ProcessShipmentAction;
 use App\Filament\Resources\Orders\Actions\RetryRefundAction;
+use App\Filament\Resources\Orders\Actions\StartRefundAction;
 use App\Filament\Resources\Orders\OrderResource;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
@@ -16,6 +18,8 @@ class ViewOrder extends ViewRecord
     {
         return [
             RetryRefundAction::make(),
+            StartRefundAction::make(),
+            MarkRefundedAction::make(),
             ProcessShipmentAction::make(),
             EditAction::make(),
         ];
