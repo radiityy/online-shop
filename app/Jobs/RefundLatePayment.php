@@ -58,7 +58,11 @@ class RefundLatePayment implements ShouldQueue
             'Order '.$order->order_code.' could not be fulfilled',
         );
 
-        if (! in_array($result['gateway_status'], ['refund', 'partial_refund'], true)) {
+        if (($result['gateway_status'] ?? null) === 'partial_refund') {
+            throw new RuntimeException('Midtrans baru mengembalikan sebagian uang, sisanya harus ditangani admin');
+        }
+
+        if (($result['gateway_status'] ?? null) !== 'refund') {
             throw new RuntimeException('Respons refund tidak terduga: '.($result['gateway_status'] ?? 'kosong'));
         }
 

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Orders\Tables;
 
 use App\Filament\Resources\Orders\Actions\ProcessShipmentAction;
+use App\Filament\Resources\Orders\Actions\RetryRefundAction;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\PaymentSettlementService;
@@ -146,7 +147,7 @@ class OrdersTable
                 EditAction::make(),
 
                 ProcessShipmentAction::make(),
-
+                RetryRefundAction::make(),
                 Action::make('markRefunded')
                     ->label('Mark as refunded')
                     ->icon('heroicon-o-banknotes')

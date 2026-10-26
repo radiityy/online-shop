@@ -162,7 +162,7 @@ class MidtransService
                 throw $e;
             }
 
-            if (in_array($current['gateway_status'], ['refund', 'partial_refund'], true)) {
+            if ($current['gateway_status'] === 'refund') {
                 return $current;
             }
 
@@ -199,7 +199,10 @@ class MidtransService
             'deny', 'failure' => Payment::STATUS_FAILED,
             'cancel' => Payment::STATUS_CANCELLED,
             'expire' => Payment::STATUS_EXPIRED,
-            'refund', 'partial_refund', 'chargeback', 'partial_chargeback' => Payment::STATUS_REFUNDED,
+            // partial_refund and partial_chargeback are deliberately not mapped: only part
+            // of the money moved, so PaymentSettlementService records them without
+            // changing the payment or the order.
+            'refund', 'chargeback' => Payment::STATUS_REFUNDED,
             default => Payment::STATUS_PENDING,
         };
     }

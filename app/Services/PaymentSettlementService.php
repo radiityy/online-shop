@@ -14,6 +14,8 @@ use Throwable;
 
 class PaymentSettlementService
 {
+    private const PARTIAL_ADJUSTMENTS = ['partial_refund', 'partial_chargeback'];
+
     public function __construct(
         private readonly MidtransService $midtrans,
         private readonly OrderNotificationService $notifications,
@@ -33,6 +35,10 @@ class PaymentSettlementService
             ]);
 
             return $payment;
+        }
+
+        if (in_array($data['gateway_status'] ?? null, self::PARTIAL_ADJUSTMENTS, true)) {
+            return $this->recordPartialAdjustment($payment, $data, $raw);
         }
 
         $status = $this->midtrans->mapStatus(
@@ -162,6 +168,34 @@ class PaymentSettlementService
         ));
 
         return true;
+    }
+
+    /**
+     * A partial refund or chargeback (for example started from the Midtrans dashboard)
+     * returns only part of the money. The order stays as it is, so a paid order is still
+     * fulfilled. The event is stored and logged once so the admin can follow up.
+     */
+    private function recordPartialAdjustment(Payment $payment, array $data, array $raw): Payment
+    {
+        $alreadyRecorded = $payment->gateway_status === $data['gateway_status'];
+
+        $payment->forceFill([
+            'gateway_status' => $data['gateway_status'],
+            'last_webhook_at' => now(),
+            'raw_response' => $raw,
+        ])->save();
+
+        if (! $alreadyRecorded) {
+            Log::warning('Midtrans: refund atau chargeback sebagian, status order tidak diubah', [
+                'gateway_order_id' => $payment->gateway_order_id,
+                'order_id' => $payment->order_id,
+                'gateway_status' => $data['gateway_status'],
+                'amount' => $payment->amount,
+                'refund_amount' => $raw['refund_amount'] ?? null,
+            ]);
+        }
+
+        return $payment;
     }
 
     private function markOrderPaid(Order $order, Payment $payment, bool $isLatest, array &$after): void

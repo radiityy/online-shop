@@ -44,7 +44,18 @@ QUEUE_CONNECTION=database
 ADMIN_NAME="NEVERENDING Admin"
 ADMIN_EMAIL="admin@your-domain.com"
 ADMIN_PASSWORD="your-secure-password"
+
+MIDTRANS_SERVER_KEY=your-production-server-key
+MIDTRANS_CLIENT_KEY=your-production-client-key
+MIDTRANS_IS_PRODUCTION=true
+MIDTRANS_EXPIRY_MINUTES=60
+MIDTRANS_AUTO_REFUND=false
+
+BITESHIP_API_KEY=your-production-api-key
+BITESHIP_WEBHOOK_SECRET=your-random-secret
 ```
+
+Set `MIDTRANS_AUTO_REFUND=true` only after section 10 is running, because refunds are sent by the queue worker.
 
 ## 5. Generate app key
 
@@ -83,7 +94,42 @@ php artisan route:cache
 php artisan view:cache
 ```
 
-## 10. Final check
+## 10. Run the queue worker and the scheduler (required)
+
+The store depends on two background processes. If either one stops, these features stop silently, without any error on the website.
+
+| Process | Used for | What happens if it is not running |
+|---------|----------|-----------------------------------|
+| `php artisan queue:work` | Automatic refunds (`RefundLatePayment`) | A payment that arrives after the order was closed is never refunded. It stays `refund_required` until an admin handles it. |
+| `php artisan schedule:run`, every minute | `orders:expire-unpaid` (every minute), `shipments:sync-tracking` (hourly) | Unpaid orders never expire and their stock stays locked. Tracking is not updated. |
+
+Cron entry for the scheduler:
+
+```bash
+* * * * * cd /path/to/project && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Keep the worker alive with a process manager (Supervisor, systemd, or the process manager in CloudPanel) so it restarts after a crash or a server reboot:
+
+```bash
+php artisan queue:work --tries=4 --sleep=3 --max-time=3600
+```
+
+After every deploy, make the worker load the new code:
+
+```bash
+php artisan queue:restart
+```
+
+Shared hosting that cannot keep a process running is not suitable for automatic refunds. Use a VPS, or keep `MIDTRANS_AUTO_REFUND=false` and refund from the admin panel by hand.
+
+Things to watch:
+
+- The `failed_jobs` table should stay empty. Check it regularly.
+- The "Needs refund" filter in the admin panel. An order that stays there means the worker is down or Midtrans rejected the refund. Use "Retry refund" on that order once the cause is fixed, or return the money manually and use "Mark as refunded". Virtual Account payments are always refunded manually.
+- The log `storage/logs/laravel.log`: search for "Refund otomatis gagal" and "Midtrans menolak permintaan".
+
+## 11. Final check
 
 Open these pages in browser:
 
@@ -105,7 +151,9 @@ Check these manually:
 - Product detail can be opened
 - Add to cart works
 - Checkout works
-- Payment proof upload works
+- A Midtrans payment (QRIS or Virtual Account) can be paid and the order becomes Paid
+- Cancel Order works and releases the stock
+- The queue worker and the scheduler are running (section 10)
 - Admin can update order status
 - Customer can see order progress
 ```
