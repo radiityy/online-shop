@@ -404,7 +404,7 @@ const showAnnouncement = computed(() => {
 
 const headerClass = computed(() => {
     if (showTransparentHeader.value) {
-        return 'top-[28px] border-b border-white/10 bg-transparent text-white';
+        return 'top-[43px] border-b border-white/10 bg-transparent text-white';
     }
 
     return 'top-0 border-b border-neutral-200 bg-white/95 text-neutral-950 shadow-sm backdrop-blur-xl';
@@ -506,11 +506,11 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <div
-            v-show="showAnnouncement"
-            class="fixed left-0 right-0 top-0 z-[60] overflow-hidden bg-neutral-950 py-1.5 text-white transition duration-300"
-        >
-            <div class="overflow-hidden bg-neutral-950 py-2 text-white">
+            <div
+                v-show="showAnnouncement"
+                class="fixed left-0 right-0 top-0 z-[60] flex h-[43px] items-center overflow-hidden bg-neutral-950 text-white transition duration-300"
+            >
+                <div class="w-full overflow-hidden text-white">
                 <div class="marquee-track text-[10px] font-bold uppercase tracking-[0.25em]">
                     <span class="marquee-item">
                         NEVERENDING DAILY WEAR — NEW DROP AVAILABLE — BUILT FOR ENDLESS ROTATION —
@@ -1296,7 +1296,7 @@ onBeforeUnmount(() => {
 .marquee-item {
     display: inline-flex;
     flex-shrink: 0;
-    padding-right: 1rem;
+    padding-right: 0.55rem;
 }
 
 @keyframes neverending-marquee {

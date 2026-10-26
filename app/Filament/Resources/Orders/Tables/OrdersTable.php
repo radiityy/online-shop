@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Orders\Tables;
 
+use App\Filament\Resources\Orders\Actions\ProcessShipmentAction;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\PaymentSettlementService;
@@ -81,6 +82,18 @@ class OrdersTable
                     ->placeholder('-')
                     ->searchable(),
 
+                TextColumn::make('shipment.biteship_status')
+                    ->label('Biteship')
+                    ->badge()
+                    ->placeholder('-')
+                    ->formatStateUsing(fn (?string $state): string => $state ? str_replace('_', ' ', strtoupper($state)) : '-')
+                    ->color(fn (?string $state): string => match ($state) {
+                        'delivered' => 'success',
+                        'cancelled', 'rejected', 'disposed', 'courier_not_found', 'on_hold', 'returned', 'return_in_transit' => 'danger',
+                        null => 'gray',
+                        default => 'info',
+                    }),
+
                 TextColumn::make('created_at')
                     ->label('Created')
                     ->dateTime('d M Y H:i')
@@ -131,6 +144,8 @@ class OrdersTable
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
+
+                ProcessShipmentAction::make(),
 
                 Action::make('markRefunded')
                     ->label('Mark as refunded')

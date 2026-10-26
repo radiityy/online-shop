@@ -42,6 +42,9 @@ return [
         'insurance' => (bool) env('BITESHIP_INSURANCE', false),
         'timeout' => (int) env('BITESHIP_TIMEOUT', 10),
         'rates_cache_seconds' => (int) env('BITESHIP_RATES_CACHE_SECONDS', 600),
+        'order_timeout' => (int) env('BITESHIP_ORDER_TIMEOUT', 30),
+        'webhook_header' => env('BITESHIP_WEBHOOK_HEADER', 'X-Biteship-Secret'),
+        'webhook_secret' => env('BITESHIP_WEBHOOK_SECRET'),
     ],
 
         'midtrans' => [

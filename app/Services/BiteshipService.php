@@ -17,6 +17,8 @@ class BiteshipService
 
     private const FAILURE_MESSAGE = 'Ongkir belum bisa dihitung saat ini. Coba lagi beberapa saat.';
 
+    private const REFERENCE_USED_CODE = 40002060;
+
     public function searchAreas(string $input): array
     {
         $input = trim($input);
@@ -88,6 +90,68 @@ class BiteshipService
             ->all();
     }
 
+    public function createOrder(array $payload): array
+    {
+        $key = (string) config('services.biteship.key');
+
+        if ($key === '') {
+            Log::error('Biteship API key belum diatur.');
+
+            throw new ShippingException('The Biteship API key is not configured.');
+        }
+
+        try {
+            $response = $this->client($key)
+                ->timeout((int) config('services.biteship.order_timeout', 30))
+                ->post('/v1/orders', $payload);
+        } catch (ConnectionException $e) {
+            Log::warning('Biteship tidak dapat dihubungi saat membuat order.', [
+                'reference_id' => $payload['reference_id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new ShippingException('Biteship could not be reached. Please try again in a moment.');
+        }
+
+        $json = $response->json();
+
+        if ($response->successful() && data_get($json, 'success') === true) {
+            $order = $this->normalizeOrder($json);
+
+            if ($order['id'] === '') {
+                Log::error('Biteship menerima order tanpa mengembalikan id.', [
+                    'reference_id' => $payload['reference_id'] ?? null,
+                ]);
+
+                throw new ShippingException('Biteship accepted the order but returned no order id. Check the Biteship dashboard before trying again.');
+            }
+
+            return $order;
+        }
+
+        if ((int) data_get($json, 'code') === self::REFERENCE_USED_CODE && filled(data_get($json, 'details.order_id'))) {
+            return [
+                'id' => (string) data_get($json, 'details.order_id'),
+                'waybill_id' => $this->nullableString(data_get($json, 'details.waybill_id')),
+                'status' => null,
+                'price' => null,
+            ];
+        }
+
+        Log::warning('Biteship menolak pembuatan order.', [
+            'reference_id' => $payload['reference_id'] ?? null,
+            'status' => $response->status(),
+            'code' => data_get($json, 'code'),
+            'error' => data_get($json, 'error'),
+        ]);
+
+        $error = $this->nullableString(data_get($json, 'error'));
+
+        throw new ShippingException($error !== null
+            ? 'Biteship rejected the shipment: ' . $error
+            : 'Biteship rejected the shipment. Please try again or create it from the Biteship dashboard.');
+    }
+
     private function send(string $method, string $path, array $data): array
     {
         $key = (string) config('services.biteship.key');
@@ -132,6 +196,25 @@ class BiteshipService
             ->acceptJson()
             ->timeout((int) config('services.biteship.timeout', 10))
             ->retry(2, 300, fn ($exception) => $exception instanceof ConnectionException, throw: false);
+    }
+
+    private function normalizeOrder(array $json): array
+    {
+        $price = data_get($json, 'price');
+
+        return [
+            'id' => (string) data_get($json, 'id', ''),
+            'waybill_id' => $this->nullableString(data_get($json, 'courier.waybill_id')),
+            'status' => $this->nullableString(data_get($json, 'status')),
+            'price' => is_numeric($price) ? (int) round((float) $price) : null,
+        ];
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     private function normalizeArea(mixed $area): array

@@ -15,6 +15,9 @@ class Shipment extends Model
         'courier',
         'service',
         'tracking_number',
+        'biteship_order_id',
+        'biteship_status',
+        'biteship_price',
         'status',
         'shipped_at',
         'delivered_at',
@@ -29,6 +32,13 @@ class Shipment extends Model
         'estimated_delivered_to',
     ];
 
+    protected $hidden = [
+        'tracking_raw_response',
+        'biteship_order_id',
+        'biteship_status',
+        'biteship_price',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -36,6 +46,7 @@ class Shipment extends Model
             'delivered_at' => 'datetime',
             'tracking_history' => 'array',
             'tracking_raw_response' => 'array',
+            'biteship_price' => 'integer',
             'last_tracked_at' => 'datetime',
             'estimated_packed_at' => 'datetime',
             'estimated_shipped_at' => 'datetime',

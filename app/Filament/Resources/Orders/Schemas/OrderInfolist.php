@@ -228,6 +228,16 @@ class OrderInfolist
                                     ->label('Tracking Number')
                                     ->placeholder('-'),
 
+                                TextEntry::make('shipment.biteship_status')
+                                    ->label('Biteship Status')
+                                    ->formatStateUsing(fn (?string $state): string => $state ? str_replace('_', ' ', strtoupper($state)) : '-')
+                                    ->placeholder('-'),
+
+                                TextEntry::make('shipment.biteship_price')
+                                    ->label('Biteship Cost')
+                                    ->money('IDR')
+                                    ->placeholder('-'),
+
                                 TextEntry::make('shipment.status')
                                     ->label('Shipment Status')
                                     ->badge()

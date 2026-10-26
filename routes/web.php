@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Store\AccountController;
 use App\Http\Controllers\Store\AddressController;
+use App\Http\Controllers\Store\BiteshipWebhookController;
 use App\Http\Controllers\Store\CartController;
 use App\Http\Controllers\Store\CheckoutController;
 use App\Http\Controllers\Store\HomeController;
@@ -28,6 +29,10 @@ Route::get('/about', [PageController::class, 'about'])->name('about');
 Route::post('/webhooks/midtrans', MidtransWebhookController::class)
     ->middleware('throttle:120,1')
     ->name('webhooks.midtrans');
+
+Route::post('/webhooks/biteship', BiteshipWebhookController::class)
+    ->middleware('throttle:120,1')
+    ->name('webhooks.biteship');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function () {
