@@ -12,9 +12,21 @@ use RuntimeException;
 
 class MidtransService
 {
+    private const REFUNDABLE_PAYMENT_TYPES = ['qris', 'gopay', 'shopeepay', 'credit_card'];
+
     public function isConfigured(): bool
     {
         return filled(config('services.midtrans.server_key'));
+    }
+
+    public function autoRefundEnabled(): bool
+    {
+        return (bool) config('services.midtrans.auto_refund', false);
+    }
+
+    public function supportsRefund(?string $paymentType): bool
+    {
+        return in_array($paymentType, self::REFUNDABLE_PAYMENT_TYPES, true);
     }
 
     public function methods(): array
@@ -132,6 +144,34 @@ class MidtransService
         return $this->normalize($data);
     }
 
+    public function refund(Payment $payment, string $refundKey, int $amount, string $reason): array
+    {
+        $reference = $payment->transaction_id ?: $payment->gateway_order_id;
+        $path = '/v2/'.rawurlencode($reference).'/refund';
+
+        try {
+            $data = $this->send('post', $path, [
+                'refund_key' => $refundKey,
+                'amount' => $amount,
+                'reason' => $reason,
+            ], ['200']);
+        } catch (RuntimeException $e) {
+            try {
+                $current = $this->status($payment->gateway_order_id);
+            } catch (RuntimeException) {
+                throw $e;
+            }
+
+            if (in_array($current['gateway_status'], ['refund', 'partial_refund'], true)) {
+                return $current;
+            }
+
+            throw $e;
+        }
+
+        return $this->normalize($data);
+    }
+
     public function verifySignature(array $payload): bool
     {
         $serverKey = (string) config('services.midtrans.server_key');
@@ -172,7 +212,7 @@ class MidtransService
 
         try {
             $client = $this->client();
-           $response = match (true) {
+            $response = match (true) {
                 $verb === 'get' => $client->get($path),
                 $body === [] => $client->send('POST', $path),
                 default => $client->post($path, $body),

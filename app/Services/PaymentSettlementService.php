@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\RefundLatePayment;
 use App\Models\Order;
 use App\Models\Payment;
 use Illuminate\Support\Arr;
@@ -225,6 +226,10 @@ class PaymentSettlementService
             $payment,
             $reason === 'duplicate_payment',
         );
+
+        if ($this->midtrans->autoRefundEnabled() && $this->midtrans->supportsRefund($payment->payment_type)) {
+            $after[] = fn () => RefundLatePayment::dispatch($payment->id);
+        }
     }
 
     private function markOrderRefunded(Order $order, Payment $payment): void

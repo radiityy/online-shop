@@ -47,7 +47,7 @@ return [
         'webhook_secret' => env('BITESHIP_WEBHOOK_SECRET'),
     ],
 
-        'midtrans' => [
+    'midtrans' => [
         'server_key' => env('MIDTRANS_SERVER_KEY'),
         'client_key' => env('MIDTRANS_CLIENT_KEY'),
         'is_production' => (bool) env('MIDTRANS_IS_PRODUCTION', false),
@@ -55,6 +55,7 @@ return [
         'production_url' => 'https://api.midtrans.com',
         'timeout' => (int) env('MIDTRANS_TIMEOUT', 15),
         'expiry_minutes' => (int) env('MIDTRANS_EXPIRY_MINUTES', 60),
+        'auto_refund' => (bool) env('MIDTRANS_AUTO_REFUND', false),
         'methods' => [
             'qris' => [
                 'label' => 'QRIS',
