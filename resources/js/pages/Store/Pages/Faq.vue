@@ -48,6 +48,14 @@ const faqs: Faq[] = [
         ],
     },
     {
+        question: 'How do I receive a refund if I paid by Virtual Account?',
+        answer: [
+            'Refunds for Virtual Account payments are sent to your bank account, so we need your bank details. When a refund is in progress, open your order page and fill in your account number and the account holder name.',
+            'Your details are stored encrypted, and the order page only shows the last four digits of the account number. The data is deleted once the refund is completed.',
+            'If the details are still missing, you will get a daily reminder until you fill them in. Refunds for other payment methods are returned automatically to the original payment method and need no extra step.',
+        ],
+    },
+    {
         question: 'How long does it take to process my order?',
         answer: [
             'Orders are processed within 1–2 working days after your payment is confirmed. Processing can take longer during campaigns and sales.',
@@ -70,6 +78,7 @@ const faqs: Faq[] = [
         question: 'Can I change my address after checkout?',
         answer: [
             'No. Addresses cannot be edited once an order is placed. If your order is still unpaid, cancel it and place a new one with the correct address. Once an order is paid it goes into processing and the address can no longer be changed.',
+            'Please check your order details carefully before paying. Changes cannot be made once the order is processed.',
         ],
     },
     {
@@ -81,8 +90,29 @@ const faqs: Faq[] = [
     {
         question: 'What is your return policy?',
         answer: [
-            'Items can be returned if you received the wrong product, a defective product, or a size that does not match your order. The buyer pays the return shipping.',
+            'You have a maximum of 7 working days after receiving your item to submit a return request.',
+            'To be eligible, the item must be in the same condition as when you received it: unworn and unused, with the tags still attached, never washed, and in its original packaging. An unboxing video must be included.',
+            'Return shipping is paid by the buyer. The round-trip shipping cost is the customer’s responsibility, usually based on the initial agreement.',
+            'To request a return, contact us at contact@neverending.com. If your return is approved, we will send a return shipping label together with instructions and the return address. Items sent back to us without an approved request will not be accepted.',
             'See the Returns page for the full conditions.',
+        ],
+    },
+    {
+        question: 'My item is damaged, defective or wrong. What should I do?',
+        answer: [
+            'Please check your order as soon as you receive it and contact us right away at contact@neverending.com if an item is defective, damaged, or not the one you ordered, so we can look into it and resolve the issue.',
+            'Complaints must be submitted within 7 working days after the package is received.',
+            'A complete, unedited unboxing video is required (no edits, cuts or pauses):',
+            '1. Shipping label and seal: the shipping label is clearly readable and the package is still fully sealed.',
+            '2. Opening: recorded from the very first moment the seal is opened.',
+            '3. Product check: shows everything inside, the physical condition and the function of the item.',
+            'A complaint is rejected if the video is cut or sped up, the shipping label is not readable, the package was opened before recording, or the request is submitted after 7 working days.',
+        ],
+    },
+    {
+        question: 'How closely do products match the photos?',
+        answer: [
+            'Product similarity is 95%–99%. Lighting and photo editing can affect how colors and details look on screen.',
         ],
     },
 ];
@@ -103,7 +133,7 @@ const toggle = (index: number) => {
                 </h1>
 
                 <p class="mt-5 max-w-2xl text-sm leading-7 text-neutral-600 md:text-base">
-                    Answers about ordering, payment, shipping and returns.
+                    Answers about ordering, payment, shipping, refunds and returns.
                 </p>
             </section>
 
